@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@plugin '@tailwindcss/typography';
+
+@theme {
+  --font-sans:
+    'Inter Variable', 'PingFang SC', 'HarmonyOS Sans SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC',
+    system-ui, sans-serif;
+
+  --color-canvas: #fafaf9;
+  --color-ai-indigo: #6366f1;
+  --color-ai-violet: #8b5cf6;
+  --color-ai-cyan: #06b6d4;
+
+  --shadow-soft: 0 1px 2px rgb(24 24 27 / 0.04), 0 10px 28px -14px rgb(24 24 27 / 0.14);
+  --shadow-float: 0 1px 2px rgb(24 24 27 / 0.05), 0 24px 56px -24px rgb(24 24 27 / 0.24);
+  --shadow-glow: 0 1px 2px rgb(24 24 27 / 0.12), 0 10px 28px -10px rgb(99 102 241 / 0.55);
+
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-aurora: aurora 22s ease-in-out infinite alternate;
+  --animate-orb: orb-spin 9s linear infinite;
+  --animate-orb-fast: orb-spin 2.6s linear infinite;
+  --animate-breathe: breathe 2.8s ease-in-out infinite;
+  --animate-caret: caret 1s steps(2) infinite;
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes aurora {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(6%, 4%, 0) scale(1.08);
+    }
+    100% {
+      transform: translate3d(-4%, 6%, 0) scale(0.96);
+    }
+  }
+  @keyframes orb-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 0.45;
+      transform: scale(0.92);
+    }
+    50% {
+      opacity: 0.9;
+      transform: scale(1.08);
+    }
+  }
+  @keyframes caret {
+    to {
+      visibility: hidden;
+    }
+  }
+}
+
+/* 渐变文字：只用在 AI 相关的强调处 */
+@utility ai-text {
+  background-image: linear-gradient(95deg, var(--color-ai-indigo), var(--color-ai-violet) 45%, var(--color-ai-cyan));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* 渐变描边：填充色通过 --ai-fill 自定义 */
+@utility ai-border {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--ai-fill, #fff), var(--ai-fill, #fff)) padding-box,
+    linear-gradient(120deg, rgb(99 102 241 / 0.6), rgb(139 92 246 / 0.6), rgb(6 182 212 / 0.6)) border-box;
+}
+
+/* 流光文字：用于「思考中」状态 */
+@utility shimmer-text {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-zinc-500) 0%,
+    var(--color-zinc-500) 40%,
+    var(--color-ai-violet) 50%,
+    var(--color-zinc-500) 60%,
+    var(--color-zinc-500) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: var(--animate-shimmer);
+}
+
+@utility dot-grid {
+  background-image: radial-gradient(rgb(24 24 27 / 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@utility skeleton {
+  background-image: linear-gradient(90deg, var(--color-zinc-100), var(--color-zinc-200) 50%, var(--color-zinc-100));
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-zinc-900);
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+  }
+  ::selection {
+    background: rgb(139 92 246 / 0.18);
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

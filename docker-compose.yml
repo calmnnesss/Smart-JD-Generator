@@ -1,0 +1,19 @@
+# 独立的 compose 项目名、容器名与网络，不会影响服务器上已有的容器
+name: smart-jd
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    image: smart-jd:latest
+    container_name: smart-jd
+    # Dify 地址与 API Key 等配置
+    env_file: ./backend/.env
+    ports:
+      # 默认宿主机端口 18090（避开 15173 / 18080 / 5435）。
+      # 以后接入 Nginx 反向代理时，可改为 "127.0.0.1:${APP_PORT:-18090}:8000" 只对本机开放
+      - "${APP_PORT:-18090}:8000"
+    restart: unless-stopped
