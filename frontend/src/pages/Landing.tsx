@@ -6,10 +6,10 @@ import { AuroraBackground } from '../components/ui/AuroraBackground'
 import { Logo } from '../components/ui/Logo'
 
 const FLOW = [
-  { icon: Sparkles, title: '对话式收集需求', text: '一句话描述岗位，AI 拆解并只追问缺失的信息' },
+  { icon: Sparkles, title: '一句话或逐项填写', text: '一句话描述岗位自动识别并提示缺失项，也可以逐项引导填写' },
   { icon: Globe, title: '查阅公开信息', text: '读取公司官网、检索公开资料，补足背景' },
   { icon: PenLine, title: '起草并自我审校', text: '提炼亮点与能力画像，撰写后再核对事实依据' },
-  { icon: ShieldCheck, title: '不编造，列出待补充', text: '拿不准的内容不写，交给你确认后再生成' },
+  { icon: ShieldCheck, title: '不编造', text: '只使用你提供的信息和检索到的公开信息，拿不准的内容不写' },
 ]
 
 const ease = [0.22, 1, 0.36, 1] as const
@@ -47,7 +47,7 @@ export default function Landing() {
             transition={{ duration: 0.7, delay: 0.2, ease }}
             className="mt-6 max-w-xl text-base leading-8 text-pretty text-zinc-600 sm:text-lg"
           >
-            告诉 AI 公司与岗位信息，它会查阅官网与公开资料、提炼亮点、起草并审校一份招聘启事底稿，最后列出仍需你确认的内容。
+            填写公司与岗位信息，AI 工作流会查阅官网与公开资料、提炼亮点，起草并审校一份招聘启事底稿。
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 16 }}

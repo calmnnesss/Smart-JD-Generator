@@ -1,10 +1,6 @@
 export type HireType = '校招' | '社招' | '实习'
-export type Route = 'quick' | 'guided'
-
-export interface Supplement {
-  item: string
-  answer: string
-}
+/** 岗位需求的描述方式：一句话识别 / 逐项引导 */
+export type RoleMode = 'quick' | 'guided'
 
 export interface BriefDraft {
   company: { name: string; domain: string; description: string }
@@ -20,7 +16,6 @@ export interface BriefDraft {
   }
   benefits: string[]
   tech_stack: string[]
-  supplements: Supplement[]
 }
 
 export interface StageInfo {
@@ -43,6 +38,19 @@ export interface ComposePreview {
   tech_stack: string
 }
 
+/** 一次生成的运行状态 */
+export interface Run {
+  id: string
+  status: 'running' | 'done' | 'error' | 'stopped'
+  stages: StageInfo[]
+  stageState: Record<string, { status: StageStatus; elapsedMs?: number }>
+  delta: string
+  result?: JdResult
+  error?: { message: string; retryable: boolean }
+  startedAt: number
+  finishedAt?: number
+}
+
 export type GenerateEvent =
   | { type: 'stages'; stages: StageInfo[] }
   | { type: 'stage'; id: string; status: StageStatus; elapsed_ms?: number }
@@ -55,5 +63,4 @@ export const emptyBrief = (): BriefDraft => ({
   role: { title: '', scene: '', location: '', hire_type: '', cohort: '', experience: '', level: '', extra: '' },
   benefits: [],
   tech_stack: [],
-  supplements: [],
 })

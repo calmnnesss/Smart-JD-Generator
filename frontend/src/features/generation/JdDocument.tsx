@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm'
 import { Button } from '../../components/ui/Button'
 import { cn } from '../../lib/cn'
 import { markdownToPlain } from '../../lib/markdown'
-import type { Run } from '../copilot/useCopilot'
+import type { Run } from '../../types'
 
 function useCopied() {
   const [copied, setCopied] = useState<string | null>(null)
@@ -83,43 +83,24 @@ function DraftingSkeleton() {
 }
 
 interface JdDocumentProps {
-  runs: Run[]
-  activeRunId: string | null
+  run: Run
   companyName: string
-  onSelect: (runId: string) => void
   className?: string
 }
 
-/** JD 文档：版本切换 + 复制 / 下载 + markdown 排版 */
-export function JdDocument({ runs, activeRunId, companyName, onSelect, className }: JdDocumentProps) {
+/** JD 文档：markdown 排版 + 复制 / 下载 */
+export function JdDocument({ run, companyName, className }: JdDocumentProps) {
   const { copied, copy } = useCopied()
-  const run = runs.find((r) => r.id === activeRunId) ?? runs[runs.length - 1]
-  if (!run) return null
   const markdown = run.result?.jd_markdown ?? run.delta
   const ready = !!run.result
 
   return (
-    <article className={cn('flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-float', className)}>
+    <article className={cn('overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-float', className)}>
       <div className="h-px bg-linear-to-r from-transparent via-violet-400/60 to-transparent" />
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 px-4 py-2.5">
-        <div className="flex items-center gap-1">
-          {runs.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => onSelect(r.id)}
-              className={cn(
-                'h-7 rounded-md px-2.5 text-xs font-medium transition',
-                r.id === run.id ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800',
-              )}
-            >
-              v{r.version}
-            </button>
-          ))}
-          <span className="ml-2 text-xs text-zinc-400">
-            {run.status === 'running' ? '撰写中…' : ready ? `用时 ${run.result!.elapsed_s}s` : run.status === 'stopped' ? '已停止' : '未完成'}
-          </span>
-        </div>
+        <span className="text-xs text-zinc-500">
+          {run.status === 'running' ? <span className="shimmer-text">正在撰写…</span> : ready ? 'JD 底稿' : run.status === 'stopped' ? '已停止' : '未完成'}
+        </span>
         {ready && (
           <div className="flex items-center gap-0.5">
             <Button variant="ghost" size="sm" onClick={() => copy('md', markdown)}>
@@ -130,19 +111,19 @@ export function JdDocument({ runs, activeRunId, companyName, onSelect, className
               {copied === 'text' ? <Check className="size-3.5 text-emerald-600" /> : <FileText className="size-3.5" />}
               {copied === 'text' ? '已复制' : '纯文本'}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => download(`${companyName || 'JD'}-招聘启事-v${run.version}.md`, markdown)} aria-label="下载 Markdown">
+            <Button variant="ghost" size="sm" onClick={() => download(`${companyName || 'JD'}-招聘启事.md`, markdown)} aria-label="下载 Markdown">
               <Download className="size-3.5" />
             </Button>
           </div>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+      <div className="px-6 py-7 sm:px-10 sm:py-9">
         {markdown ? (
           <JdMarkdown markdown={markdown} streaming={run.status === 'running'} />
         ) : run.status === 'running' ? (
           <DraftingSkeleton />
         ) : (
-          <p className="py-10 text-center text-sm text-zinc-400">这个版本没有生成内容</p>
+          <p className="py-10 text-center text-sm text-zinc-400">没有生成内容</p>
         )}
       </div>
     </article>

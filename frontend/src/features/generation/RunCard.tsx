@@ -1,22 +1,18 @@
-import { CircleAlert, CirclePause, PanelRight, RotateCcw, Sparkles } from 'lucide-react'
+import { ChevronDown, CircleAlert, CirclePause, RotateCcw, Sparkles } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useState } from 'react'
 import { AIOrb } from '../../components/ui/AIOrb'
 import { Button } from '../../components/ui/Button'
+import { hostOf } from '../../lib/url'
 import { formatSeconds, useNow } from '../../lib/useNow'
-import { hostOf } from '../copilot/script'
-import type { Run } from '../copilot/useCopilot'
-import type { BriefDraft } from '../../types'
-import { JdDocument } from './JdDocument'
+import type { BriefDraft, Run } from '../../types'
 import { StageTimeline } from './StageTimeline'
 
 interface RunCardProps {
   run: Run
-  runs: Run[]
   brief: BriefDraft
-  isLatest: boolean
   onStop: () => void
   onRetry: () => void
-  onOpen: () => void
-  onSelect: (runId: string) => void
 }
 
 function stageCaptions(brief: BriefDraft): Record<string, string> {
@@ -30,73 +26,65 @@ function stageCaptions(brief: BriefDraft): Record<string, string> {
   }
 }
 
-/** 对话流中的「生成过程」卡片：真实阶段进度 + 计时 + 停止 / 重试 */
-export function RunCard({ run, runs, brief, isLatest, onStop, onRetry, onOpen, onSelect }: RunCardProps) {
+/** 生成进度：运行中完整展开；完成后收起为一行摘要，可展开查看 */
+export function RunCard({ run, brief, onStop, onRetry }: RunCardProps) {
   const running = run.status === 'running'
+  const [expanded, setExpanded] = useState(false)
   const now = useNow(running)
   const elapsed = (run.finishedAt ?? now) - run.startedAt
+  const finishedStages = run.stages.filter((s) => run.stageState[s.id]?.status === 'done').length
+  const collapsible = run.status === 'done'
+  const open = !collapsible || expanded
 
   const header = {
-    running: { title: '正在生成 JD 底稿', icon: null },
-    done: { title: 'JD 底稿已生成', icon: <Sparkles className="size-4 text-violet-500" /> },
+    running: { title: '正在生成 JD 底稿', icon: <AIOrb size={20} thinking /> },
+    done: { title: `已完成 ${finishedStages} 个步骤`, icon: <Sparkles className="size-4 text-violet-500" /> },
     error: { title: '生成未完成', icon: <CircleAlert className="size-4 text-rose-500" /> },
     stopped: { title: '已停止生成', icon: <CirclePause className="size-4 text-zinc-400" /> },
   }[run.status]
 
   return (
-    <div className="space-y-3">
-      <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-soft">
-        <div className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3">
-          {running ? <AIOrb size={20} thinking /> : header.icon}
-          <div className="min-w-0 flex-1">
-            <div className={running ? 'shimmer-text text-sm font-medium' : 'text-sm font-medium text-zinc-900'}>{header.title}</div>
-          </div>
-          <span className="text-xs text-zinc-400 tabular-nums">
-            v{run.version} · {run.result ? `${run.result.elapsed_s}s` : formatSeconds(elapsed)}
-          </span>
-          {running && (
-            <Button variant="secondary" size="sm" onClick={onStop} className="h-7">
-              停止
-            </Button>
-          )}
-        </div>
-        <div className="px-4 py-3.5">
-          <StageTimeline stages={run.stages} state={run.stageState} captions={stageCaptions(brief)} />
-          {run.error && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-rose-50 px-3 py-2.5 text-[13px] text-rose-700">
-              <span>{run.error.message}</span>
-              {run.error.retryable && isLatest && (
-                <Button size="sm" variant="secondary" onClick={onRetry} className="h-7">
-                  <RotateCcw className="size-3.5" />
-                  重试
-                </Button>
-              )}
-            </div>
-          )}
-          {run.status === 'stopped' && isLatest && (
-            <div className="mt-3 flex justify-end">
-              <Button size="sm" variant="secondary" onClick={onRetry}>
-                <RotateCcw className="size-3.5" />
-                重新生成
-              </Button>
-            </div>
-          )}
-        </div>
-        {run.result && (
-          <button
-            type="button"
-            onClick={onOpen}
-            className="hidden w-full items-center justify-between border-t border-zinc-100 bg-zinc-50/70 px-4 py-2.5 text-left text-[13px] text-zinc-600 transition hover:bg-zinc-100/70 hover:text-zinc-900 lg:flex"
-          >
-            <span>已在右侧打开 v{run.version}，可复制或下载</span>
-            <PanelRight className="size-4" />
-          </button>
+    <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/90 shadow-soft backdrop-blur">
+      <div className="flex items-center gap-3 px-4 py-3">
+        {header.icon}
+        <button
+          type="button"
+          disabled={!collapsible}
+          onClick={() => setExpanded((e) => !e)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left disabled:cursor-default"
+        >
+          <span className={running ? 'shimmer-text text-sm font-medium' : 'text-sm font-medium text-zinc-900'}>{header.title}</span>
+          {collapsible && <ChevronDown className={`size-4 text-zinc-400 transition ${expanded ? 'rotate-180' : ''}`} />}
+        </button>
+        <span className="text-xs text-zinc-400 tabular-nums">{run.result ? `用时 ${run.result.elapsed_s}s` : formatSeconds(elapsed)}</span>
+        {running && (
+          <Button variant="secondary" size="sm" onClick={onStop} className="h-7">
+            停止
+          </Button>
+        )}
+        {(run.status === 'stopped' || run.error?.retryable) && (
+          <Button size="sm" variant="secondary" onClick={onRetry} className="h-7">
+            <RotateCcw className="size-3.5" />
+            {run.status === 'stopped' ? '重新生成' : '重试'}
+          </Button>
         )}
       </div>
-      {/* 小屏没有右侧面板，直接在对话流里展示 JD */}
-      {run.result && (
-        <JdDocument runs={runs} activeRunId={run.id} companyName={brief.company.name} onSelect={onSelect} className="max-h-[70vh] lg:hidden" />
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-zinc-100 px-4 py-3.5">
+              <StageTimeline stages={run.stages} state={run.stageState} captions={stageCaptions(brief)} />
+              {run.error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2.5 text-[13px] text-rose-700">{run.error.message}</div>}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

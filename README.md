@@ -1,14 +1,16 @@
 # Smart JD · JD 智能生成器
 
-用对话方式收集公司和岗位信息，交给 Dify 工作流去查阅官网与公开资料、提炼亮点、起草并审校，最后得到一份**不编造**的招聘启事底稿，以及一份「仍需人工补充的信息」清单。
+用分步表单收集公司和岗位信息，交给 Dify 工作流去查阅官网与公开资料、提炼亮点、起草并审校，最后得到一份**不编造**的招聘启事底稿。
 
-- **对话式输入**：岗位需求有两种填写方式。
-  - 一句话描述：前端实时拆出岗位、场景、地点、届别、经验，缺什么只追问什么。
-  - 一步步引导填写：用可搜索下拉、单选卡、分段选择等控件逐项填写。
-- **实时招聘简报**：随对话填充，显示信息完整度，点击任意字段即可修改。
+- **分步表单**：公司信息 → 岗位需求 → 福利与技术栈 → 确认生成。
+- **岗位需求两种填法**：两种方式写入同一份岗位信息，可以随时切换。
+  - 一句话识别：输入一句话，前端按规则拆出岗位、场景、地点、届别、经验；没识别出的字段标为「待补充」，并直接给出对应控件。
+  - 逐项引导：每屏只问一项，用可搜索下拉、单选卡、分段选择等控件填写，选择后自动进入下一项。
+- **实时招聘简报**：随填写实时更新，显示信息完整度，点击任意字段跳到对应位置修改。
 - **真实进度**：生成过程按 Dify 节点事件推进，依次是访问官网 → 检索公开信息 → 提炼亮点 → 能力画像 → 撰写初稿 → 审校定稿。
-- **补充闭环**：逐项填写工作流列出的缺失信息，带着补充内容重新生成，结果按 v1 / v2 保留多个版本。
 - **导出**：可复制 Markdown、复制纯文本（方便粘贴到招聘平台），也可下载 `.md` 文件。
+
+信息收集环节不接 LLM，界面也不模拟对话；AI 只出现在真正调用它的地方，也就是 Dify 工作流的生成过程。
 
 ## 架构
 
@@ -27,9 +29,9 @@ Dify 工作流（JD_generator_v3）
 
 ```
 frontend/   Vite + React + TypeScript + Tailwind CSS v4 + motion
-  src/features/copilot/     对话引导：提问脚本、状态机、回答区控件
+  src/features/form/        分步表单：状态管理、字段定义、表单控件、各步骤
   src/features/brief/       招聘简报与完整度
-  src/features/generation/  生成进度、JD 文档、待补充信息
+  src/features/generation/  生成进度、JD 文档
   src/pages/                Landing（落地页占位）、Studio（生成器）
 backend/    FastAPI + httpx
   app/compose.py   简报 → 工作流入参的拼接规则
@@ -62,7 +64,7 @@ npm install
 npm run dev
 ```
 
-打开 <http://localhost:5173>。落地页在 `/`，生成器在 `/studio`；`/studio?demo=1` 会自动播放示例对话。
+打开 <http://localhost:5173>。落地页在 `/`，生成器在 `/studio`；`/studio?demo=1` 会自动填入示例。
 
 ## 配置（`backend/.env`）
 
@@ -88,7 +90,7 @@ npm run dev
 | `hiring_needs` | 由岗位、场景、地点、类型/届别/经验、职级拼接，例如 `AI 产品经理，负责金融场景下的大模型应用产品，base 杭州，2026 届校招`；一句话里没识别出的内容原样追加，不丢信息 |
 | `specific_benefits` / `tech_stack` | 用「、」连接，**逐字保留**，不改写 |
 | `company_domain` | 自动补全 `https://` |
-| `company_description` | 用户在结果页补充的信息会以「补充信息：」段落追加在末尾（这是工作流中可信度最高的信息源） |
+| `company_description` | 原样传入；后端也支持把补充信息以「补充信息：」段落追加在末尾（前端暂未使用，见「后续」） |
 
 **生成阶段映射**（`backend/app/stages.py`）：先按节点标题关键词匹配，匹配不上时按节点类型顺延。后端日志会打印每个节点的标题与映射结果：
 
@@ -106,7 +108,7 @@ NODE_TITLE_OVERRIDES = {"LLM1": "analyze", "LLM2": "profile", "LLM3": "draft", "
 
 ```bash
 cd backend && pytest                                # 拼接规则、输出解析、SSE 解析、接口
-cd frontend && npm test && npm run lint && npm run build   # 一句话解析、对话状态机、SSE 解析
+cd frontend && npm test && npm run lint && npm run build   # 一句话解析、表单状态、SSE 解析
 ```
 
 ## Docker 部署
@@ -132,4 +134,6 @@ docker compose up -d --build
 ## 后续
 
 - 落地页正式内容（项目背景、工作流设计、迭代记录）
+- AI 对话模式：接入 LLM 中间层，从自由对话中抽取招聘字段、回答旁支问题并拉回主题。它写入的是同一份 `Brief`，可以作为岗位需求的第三种填法
+- 利用工作流返回的空缺建议（`missing_info`）补充信息后改进再生成：后端的解析和 `supplements` 拼接已经就绪，前端暂未使用
 - 访问防护（限流、访问码）：在 `backend/app/main.py` 的 `generation_guard` 中实现，业务代码不用改

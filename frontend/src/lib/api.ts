@@ -1,4 +1,4 @@
-import type { BriefDraft, ComposePreview, GenerateEvent, Route } from '../types'
+import type { BriefDraft, ComposePreview, GenerateEvent, RoleMode } from '../types'
 import { createSseParser, toGenerateEvent } from './sse'
 
 const CLIENT_ID_KEY = 'smart-jd:client-id'
@@ -18,7 +18,7 @@ function clientId(): string {
 
 const orNull = (value: string) => value.trim() || null
 
-export function toPayload(brief: BriefDraft, route: Route | null) {
+export function toPayload(brief: BriefDraft, mode: RoleMode) {
   const { company, role } = brief
   return {
     company: { name: company.name.trim(), domain: company.domain.trim(), description: company.description.trim() },
@@ -34,8 +34,7 @@ export function toPayload(brief: BriefDraft, route: Route | null) {
     },
     benefits: brief.benefits,
     tech_stack: brief.tech_stack,
-    supplements: brief.supplements,
-    mode: route ?? 'quick',
+    mode,
     client_id: clientId(),
   }
 }
@@ -51,11 +50,11 @@ async function errorMessage(res: Response): Promise<string> {
   return res.status >= 500 ? '服务暂时不可用，请稍后再试' : `请求失败（${res.status}）`
 }
 
-export async function fetchComposePreview(brief: BriefDraft, route: Route | null): Promise<ComposePreview> {
+export async function fetchComposePreview(brief: BriefDraft, mode: RoleMode): Promise<ComposePreview> {
   const res = await fetch('/api/compose', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toPayload(brief, route)),
+    body: JSON.stringify(toPayload(brief, mode)),
   })
   if (!res.ok) throw new Error(await errorMessage(res))
   return res.json()
@@ -64,14 +63,14 @@ export async function fetchComposePreview(brief: BriefDraft, route: Route | null
 /** 调用 /api/generate 并逐个回调精简后的生成事件。EventSource 不支持 POST，所以用 fetch 读流。 */
 export async function streamGenerate(
   brief: BriefDraft,
-  route: Route | null,
+  mode: RoleMode,
   onEvent: (event: GenerateEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify(toPayload(brief, route)),
+    body: JSON.stringify(toPayload(brief, mode)),
     signal,
   })
   if (!res.ok || !res.body) throw new Error(await errorMessage(res))

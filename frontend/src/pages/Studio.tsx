@@ -1,51 +1,82 @@
-import { FileText, ListChecks, X } from 'lucide-react'
+import { ArrowLeft, FileText, ListChecks, Plus, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { AuroraBackground } from '../components/ui/AuroraBackground'
 import { Button } from '../components/ui/Button'
 import { Logo } from '../components/ui/Logo'
-import { cn } from '../lib/cn'
 import { scoreBrief } from '../lib/completeness'
 import { BriefPanel } from '../features/brief/BriefPanel'
-import { ChatThread } from '../features/copilot/ChatThread'
-import { Dock } from '../features/copilot/Dock'
-import { useCopilot } from '../features/copilot/useCopilot'
+import { CompanyStep } from '../features/form/CompanyStep'
+import { ConfirmStep } from '../features/form/ConfirmStep'
+import { ExtrasStep } from '../features/form/ExtrasStep'
+import type { FieldKey, StepKey } from '../features/form/fields'
+import { RoleStep } from '../features/form/RoleStep'
+import { Stepper } from '../features/form/StepShell'
+import { useStudio, type Studio as StudioModel } from '../features/form/useStudio'
 import { JdDocument } from '../features/generation/JdDocument'
+import { RunCard } from '../features/generation/RunCard'
 
-type PanelTab = 'document' | 'brief'
+const STEP_VIEWS: Record<StepKey, (props: { studio: StudioModel }) => ReactNode> = {
+  company: CompanyStep,
+  role: RoleStep,
+  extras: ExtrasStep,
+  confirm: ConfirmStep,
+}
+
+function ResultView({ studio }: { studio: StudioModel }) {
+  const { state, dispatch, reset, generate, stop } = studio
+  const run = state.run!
+  const running = run.status === 'running'
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'back_to_form' })} disabled={running}>
+          <ArrowLeft className="size-4" />
+          返回修改信息
+        </Button>
+        <Button variant="ghost" size="sm" onClick={reset} disabled={running}>
+          <Plus className="size-4" />
+          新的招聘
+        </Button>
+      </div>
+      <RunCard run={run} brief={state.brief} onStop={stop} onRetry={generate} />
+      <JdDocument run={run} companyName={state.brief.company.name} />
+    </div>
+  )
+}
 
 export default function Studio() {
-  const copilot = useCopilot()
-  const { state } = copilot
-  // 右侧面板的标签选择绑定在当前版本上：切换到新版本时自动回到文档视图
-  const [tabChoice, setTabChoice] = useState<{ tab: PanelTab; runId: string | null }>({ tab: 'brief', runId: null })
-  const tab = tabChoice.runId === state.activeRunId ? tabChoice.tab : 'document'
-  const setTab = (next: PanelTab) => setTabChoice({ tab: next, runId: state.activeRunId })
+  const studio = useStudio()
+  const { state, dispatch, reset, fillSample } = studio
   const [sheetOpen, setSheetOpen] = useState(false)
   const [params, setParams] = useSearchParams()
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  // /studio?demo=1：直接播放示例（落地页「看看示例」入口）
-  const { playSample } = copilot
+  // /studio?demo=1：直接填入示例（落地页「看看示例」入口）
   useEffect(() => {
     if (!params.get('demo')) return
     setParams({}, { replace: true })
-    playSample()
-  }, [params, setParams, playSample])
+    fillSample()
+  }, [params, setParams, fillSample])
 
-  const hasRuns = state.runs.length > 0
-  const editable = !state.autoplay && state.phase !== 'intro' && state.phase !== 'generating'
+  // 切换步骤或视图时回到顶部
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [state.step, state.view])
+
   const { score } = scoreBrief(state.brief)
+  const StepView = STEP_VIEWS[state.step]
 
   const briefPanel = (
     <BriefPanel
       brief={state.brief}
-      route={state.route}
+      roleMode={state.roleMode}
       lastChanged={state.lastChanged}
-      editable={editable}
-      onEdit={(stepId) => {
+      editable={state.view === 'form' && !state.filling}
+      onEdit={(step: StepKey, field: FieldKey) => {
         setSheetOpen(false)
-        copilot.edit(stepId)
+        dispatch({ type: 'edit_field', step, field })
       }}
     />
   )
@@ -56,74 +87,51 @@ export default function Studio() {
       <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-zinc-200/60 bg-canvas/70 px-4 backdrop-blur-md sm:px-6">
         <Logo />
         <div className="flex items-center gap-1.5">
+          {state.view === 'form' && state.run && (
+            <Button variant="secondary" size="sm" onClick={() => dispatch({ type: 'show_result' })}>
+              <FileText className="size-3.5" />
+              查看结果
+            </Button>
+          )}
           <Button variant="secondary" size="sm" className="lg:hidden" onClick={() => setSheetOpen(true)}>
             <ListChecks className="size-3.5" />
             简报 <span className="text-zinc-400 tabular-nums">{score}%</span>
           </Button>
-          <Button variant="ghost" size="sm" onClick={copilot.reset} disabled={state.phase === 'intro' && !state.autoplay}>
-            重新开始
-          </Button>
+          {state.view === 'form' && (
+            <Button variant="ghost" size="sm" onClick={reset}>
+              重新开始
+            </Button>
+          )}
         </div>
       </header>
 
-      <main className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1">
-        <section className="flex min-w-0 flex-1 flex-col">
-          <ChatThread
-            copilot={copilot}
-            onOpenDocument={(runId) => {
-              copilot.selectRun(runId)
-              setTabChoice({ tab: 'document', runId })
-            }}
-          />
-          <div className="shrink-0 px-4 pb-4 sm:px-6 sm:pb-6">
-            <div className="mx-auto max-w-2xl">
-              <Dock copilot={copilot} />
-            </div>
-          </div>
-        </section>
-
-        <aside
-          className={cn(
-            'hidden min-h-0 shrink-0 flex-col border-l border-zinc-200/60 bg-white/40 backdrop-blur-sm transition-[width] duration-500 ease-out lg:flex',
-            hasRuns ? 'w-[48%] max-w-[720px]' : 'w-[380px] xl:w-[420px]',
-          )}
-        >
-          {hasRuns && (
-            <div className="flex shrink-0 items-center gap-1 px-5 pt-4">
-              {(
-                [
-                  ['document', 'JD 文档', FileText],
-                  ['brief', '招聘简报', ListChecks],
-                ] as const
-              ).map(([key, label, Icon]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setTab(key)}
-                  className={cn(
-                    'inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] transition',
-                    tab === key ? 'bg-white font-medium text-zinc-900 shadow-soft' : 'text-zinc-500 hover:text-zinc-800',
-                  )}
-                >
-                  <Icon className="size-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            {hasRuns && tab === 'document' ? (
-              <JdDocument
-                runs={state.runs}
-                activeRunId={state.activeRunId}
-                companyName={state.brief.company.name}
-                onSelect={copilot.selectRun}
-                className="h-full"
-              />
+      <main className="mx-auto flex min-h-0 w-full max-w-[1320px] flex-1">
+        <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto">
+          <div className={`mx-auto w-full px-4 pt-6 pb-16 sm:px-6 sm:pt-10 ${state.view === 'form' ? 'max-w-2xl' : 'max-w-3xl'}`}>
+            {state.view === 'form' ? (
+              <>
+                <Stepper studio={studio} />
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={state.step}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                    className="mt-6"
+                  >
+                    <StepView studio={studio} />
+                  </motion.div>
+                </AnimatePresence>
+              </>
             ) : (
-              <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-soft">{briefPanel}</div>
+              <ResultView studio={studio} />
             )}
           </div>
+        </div>
+
+        <aside className="hidden w-[380px] shrink-0 overflow-y-auto border-l border-zinc-200/60 bg-white/40 p-5 backdrop-blur-sm lg:block xl:w-[400px]">
+          <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-soft">{briefPanel}</div>
         </aside>
       </main>
 

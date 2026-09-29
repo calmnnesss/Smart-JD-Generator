@@ -4,22 +4,24 @@ import type { ReactNode } from 'react'
 import { Tag } from '../../components/ui/Chip'
 import { cn } from '../../lib/cn'
 import { scoreBrief } from '../../lib/completeness'
-import type { BriefDraft, Route } from '../../types'
-import { hostOf, type StepId } from '../copilot/script'
+import { hostOf } from '../../lib/url'
+import type { BriefDraft, RoleMode } from '../../types'
+import type { FieldKey, StepKey } from '../form/fields'
 import { CompletenessRing } from './CompletenessRing'
 
 interface BriefPanelProps {
   brief: BriefDraft
-  route: Route | null
-  lastChanged: { step: StepId; at: number } | null
+  roleMode: RoleMode
+  lastChanged: { fields: FieldKey[]; at: number } | null
   editable: boolean
-  onEdit: (stepId: StepId) => void
+  onEdit: (step: StepKey, field: FieldKey) => void
 }
 
 interface RowProps {
   label: string
-  steps: StepId[]
-  editStep?: StepId
+  /** 这一行展示的字段，任一字段变化时高亮 */
+  fields: FieldKey[]
+  step: StepKey
   children: ReactNode
   empty: boolean
 }
@@ -27,18 +29,18 @@ interface RowProps {
 interface RowContext {
   lastChanged: BriefPanelProps['lastChanged']
   editable: boolean
-  onEdit: (stepId: StepId) => void
+  onEdit: BriefPanelProps['onEdit']
 }
 
-function BriefRow({ label, steps, editStep, children, empty, lastChanged, editable, onEdit }: RowProps & RowContext) {
-  const flashing = lastChanged && steps.includes(lastChanged.step)
-  const canEdit = editable && !!editStep
+function BriefRow({ label, fields, step, children, empty, lastChanged, editable, onEdit }: RowProps & RowContext) {
+  const flashing = lastChanged && fields.some((f) => lastChanged.fields.includes(f))
+  const canEdit = editable
   return (
     <motion.button
       type="button"
       key={flashing ? lastChanged.at : 'static'}
       disabled={!canEdit}
-      onClick={() => editStep && onEdit(editStep)}
+      onClick={() => onEdit(step, fields[0])}
       initial={flashing ? { backgroundColor: 'rgba(237, 233, 254, 1)' } : false}
       animate={{ backgroundColor: 'rgba(237, 233, 254, 0)' }}
       transition={{ duration: 1.4, ease: 'easeOut' }}
@@ -54,7 +56,7 @@ function BriefRow({ label, steps, editStep, children, empty, lastChanged, editab
   )
 }
 
-export function BriefPanel({ brief, route, lastChanged, editable, onEdit }: BriefPanelProps) {
+export function BriefPanel({ brief, roleMode, lastChanged, editable, onEdit }: BriefPanelProps) {
   const { score, tips } = scoreBrief(brief)
   const { company, role } = brief
   const ctx: RowContext = { lastChanged, editable, onEdit }
@@ -68,7 +70,7 @@ export function BriefPanel({ brief, route, lastChanged, editable, onEdit }: Brie
         <div>
           <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900">招聘简报</h2>
           <p className="mt-0.5 text-xs text-zinc-500">
-            {route ? (route === 'quick' ? '一句话拆解' : '逐项引导') : '随对话实时整理'} · 点击任意字段可修改
+            {roleMode === 'quick' ? '一句话识别' : '逐项引导'} · {editable ? '点击任意字段可修改' : '本次生成使用的信息'}
           </p>
         </div>
         <CompletenessRing score={score} />
@@ -76,40 +78,40 @@ export function BriefPanel({ brief, route, lastChanged, editable, onEdit }: Brie
 
       <section>
         <h3 className="mb-1 text-xs font-medium tracking-wide text-zinc-400">公司</h3>
-        <BriefRow {...ctx} label="名称" steps={['company_name']} editStep="company_name" empty={!company.name}>
+        <BriefRow {...ctx} label="名称" fields={['name']} step="company" empty={!company.name}>
           {company.name}
         </BriefRow>
-        <BriefRow {...ctx} label="官网" steps={['company_domain']} editStep="company_domain" empty={!company.domain}>
+        <BriefRow {...ctx} label="官网" fields={['domain']} step="company" empty={!company.domain}>
           {hostOf(company.domain)}
         </BriefRow>
-        <BriefRow {...ctx} label="介绍" steps={['company_description']} editStep="company_description" empty={!company.description}>
+        <BriefRow {...ctx} label="介绍" fields={['description']} step="company" empty={!company.description}>
           <span className="line-clamp-3">{company.description}</span>
         </BriefRow>
       </section>
 
       <section>
         <h3 className="mb-1 text-xs font-medium tracking-wide text-zinc-400">岗位</h3>
-        <BriefRow {...ctx} label="岗位" steps={['role_title', 'one_liner', 'level']} editStep="role_title" empty={!role.title}>
+        <BriefRow {...ctx} label="岗位" fields={['title', 'level']} step="role" empty={!role.title}>
           {role.title}
           {role.level && <span className="text-zinc-500">（{role.level}）</span>}
         </BriefRow>
-        <BriefRow {...ctx} label="场景" steps={['scene', 'one_liner']} editStep="scene" empty={!role.scene}>
+        <BriefRow {...ctx} label="场景" fields={['scene']} step="role" empty={!role.scene}>
           {role.scene}
         </BriefRow>
-        <BriefRow {...ctx} label="地点" steps={['location', 'one_liner']} editStep="location" empty={!role.location}>
+        <BriefRow {...ctx} label="地点" fields={['location']} step="role" empty={!role.location}>
           {role.location}
         </BriefRow>
         <BriefRow
           {...ctx}
           label="类型"
-          steps={['hire_type', 'cohort', 'experience', 'one_liner']}
-          editStep="hire_type"
+          fields={['hire_type', 'cohort', 'experience']}
+          step="role"
           empty={!hireText}
         >
           {hireText}
         </BriefRow>
         {role.extra && (
-          <BriefRow {...ctx} label="其他" steps={['one_liner']} editStep={route === 'quick' ? 'one_liner' : undefined} empty={false}>
+          <BriefRow {...ctx} label="其他" fields={['extra']} step="role" empty={false}>
             {role.extra}
           </BriefRow>
         )}
@@ -117,14 +119,14 @@ export function BriefPanel({ brief, route, lastChanged, editable, onEdit }: Brie
 
       <section>
         <h3 className="mb-1 text-xs font-medium tracking-wide text-zinc-400">写进 JD 的原话</h3>
-        <BriefRow {...ctx} label="福利" steps={['benefits']} editStep="benefits" empty={!brief.benefits.length}>
+        <BriefRow {...ctx} label="福利" fields={['benefits']} step="extras" empty={!brief.benefits.length}>
           <span className="flex flex-wrap gap-1 py-0.5">
             {brief.benefits.map((b) => (
               <Tag key={b}>{b}</Tag>
             ))}
           </span>
         </BriefRow>
-        <BriefRow {...ctx} label="技术栈" steps={['tech_stack']} editStep="tech_stack" empty={!brief.tech_stack.length}>
+        <BriefRow {...ctx} label="技术栈" fields={['tech_stack']} step="extras" empty={!brief.tech_stack.length}>
           <span className="flex flex-wrap gap-1 py-0.5">
             {brief.tech_stack.map((t) => (
               <Tag key={t}>{t}</Tag>
@@ -133,21 +135,7 @@ export function BriefPanel({ brief, route, lastChanged, editable, onEdit }: Brie
         </BriefRow>
       </section>
 
-      {brief.supplements.length > 0 && (
-        <section>
-          <h3 className="mb-2 text-xs font-medium tracking-wide text-zinc-400">补充信息</h3>
-          <ul className="space-y-1.5">
-            {brief.supplements.map((s) => (
-              <li key={s.item} className="text-[13px] leading-6">
-                <span className="text-zinc-500">{s.item}：</span>
-                <span className="text-zinc-800">{s.answer}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {tips.length > 0 && (
+      {editable && tips.length > 0 && (
         <div className="rounded-xl border border-dashed border-zinc-200 bg-white/60 p-3">
           <div className="ai-text mb-1.5 text-xs font-medium">让 JD 更具体</div>
           <ul className="space-y-1 text-xs leading-5 text-zinc-500">
