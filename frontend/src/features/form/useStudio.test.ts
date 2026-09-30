@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { parseHiring } from '../../lib/parseHiring'
 import { firstBlockedStep, guidedQuestions, stepIssues } from './fields'
 import { initialState, reducer, type StudioState } from './useStudio'
 
 type Action = Parameters<typeof reducer>[1]
 const run = (actions: Action[], state: StudioState = initialState()) => actions.reduce(reducer, state)
+// 模拟一次本地规则识别（LLM 不可用时的回退路径）
+const recognize = (text: string): Action[] => [
+  { type: 'set_one_liner', text },
+  { type: 'parse_start', text },
+  { type: 'parse_done', text, result: parseHiring(text), engine: 'rules' },
+]
 
 const COMPANY: Action[] = [
   { type: 'patch_company', patch: { name: '恒生电子' } },
@@ -22,7 +29,7 @@ describe('步骤校验', () => {
     const state = run([...COMPANY, { type: 'patch_role', patch: { title: '产品经理' } }])
     const issues = stepIssues(state.brief, 'role')
     expect(issues.errors).toEqual({})
-    expect(issues.warnings).toEqual(['scene', 'location', 'hire_type'])
+    expect(issues.warnings).toEqual(['scene', 'locations', 'hire_type'])
   })
 
   it('前进不能越过还有错误的步骤', () => {
@@ -35,47 +42,68 @@ describe('步骤校验', () => {
 })
 
 describe('一句话识别', () => {
-  it('识别结果写入岗位字段，并记录已识别项', () => {
-    const state = run([
-      { type: 'set_one_liner', text: 'AI 产品经理，负责金融场景下的大模型应用产品，base 杭州，2026 届校招，需要能出差' },
-      { type: 'apply_one_liner' },
-    ])
+  it('识别结果写入岗位字段，并记录已识别项与引擎', () => {
+    const state = run(recognize('AI 产品经理，负责金融场景下的大模型应用产品，base 杭州，2026 届校招，需要能出差'))
     expect(state.brief.role).toMatchObject({
       title: 'AI 产品经理',
       scene: '金融场景下的大模型应用产品',
-      location: '杭州',
+      locations: ['杭州'],
       hire_type: '校招',
       cohort: '2026届',
       extra: '需要能出差',
     })
-    expect(state.detected).toEqual(['title', 'scene', 'location', 'hire_type', 'cohort'])
+    expect(state.detected).toEqual(['title', 'scene', 'locations', 'hire_type', 'cohort'])
+    expect(state).toMatchObject({ parseEngine: 'rules', parsingText: null })
   })
 
-  it('句子未变化时不重复识别，修改后的字段保留', () => {
-    let state = run([{ type: 'set_one_liner', text: '后端工程师，负责支付系统' }, { type: 'apply_one_liner' }])
-    state = run([{ type: 'patch_role', patch: { location: '上海' } }, { type: 'apply_one_liner' }], state)
-    expect(state.brief.role.location).toBe('上海')
+  it('LLM 结果附带岗位类别时直接设定技术栈标签组', () => {
+    const text = '产品经理，上海/杭州'
+    const state = run([
+      { type: 'set_one_liner', text },
+      { type: 'parse_start', text },
+      { type: 'parse_done', text, engine: 'llm', result: { title: '产品经理', locations: ['上海', '杭州'], level: 'P6', category: 'product' } },
+    ])
+    expect(state.brief.role).toMatchObject({ locations: ['上海', '杭州'], level: 'P6' })
+    expect(state.tech).toEqual({ group: 'product', forTitle: '产品经理', engine: 'llm', loading: false })
+  })
+
+  it('句子在识别期间被改动时丢弃过期结果', () => {
+    const state = run([
+      { type: 'parse_start', text: '旧句子' },
+      { type: 'parse_start', text: '新句子' },
+      { type: 'parse_done', text: '旧句子', engine: 'llm', result: { title: '旧岗位' } },
+    ])
+    expect(state.brief.role.title).toBe('')
+    expect(state.parsingText).toBe('新句子')
   })
 
   it('再次识别会覆盖上一次写入的字段，职级保留', () => {
     const state = run([
-      { type: 'set_one_liner', text: '后端工程师，base 上海，社招 3-5年' },
-      { type: 'apply_one_liner' },
+      ...recognize('后端工程师，base 上海，社招 3-5年'),
       { type: 'patch_role', patch: { level: '高级' } },
-      { type: 'set_one_liner', text: '算法工程师，2027 届校招' },
-      { type: 'apply_one_liner' },
+      ...recognize('算法工程师，2027 届校招'),
     ])
-    expect(state.brief.role).toMatchObject({ title: '算法工程师', location: '', hire_type: '校招', cohort: '2027届', experience: '', level: '高级' })
-    expect(stepIssues(state.brief, 'role').warnings).toEqual(['scene', 'location'])
+    expect(state.brief.role).toMatchObject({ title: '算法工程师', locations: [], hire_type: '校招', cohort: '2027届', experience: '', level: '高级' })
+    expect(stepIssues(state.brief, 'role').warnings).toEqual(['scene', 'locations'])
+  })
+})
+
+describe('技术栈标签组', () => {
+  it('岗位名称在判断期间变化时丢弃旧结果；手动选择会记录来源', () => {
+    let state = run([{ type: 'patch_role', patch: { title: '产品经理' } }, { type: 'tech_start' }, { type: 'patch_role', patch: { title: '前端工程师' } }])
+    state = run([{ type: 'tech_done', title: '产品经理', group: 'product', engine: 'llm' }], state)
+    expect(state.tech).toMatchObject({ group: null, loading: false })
+    state = run([{ type: 'tech_done', title: '前端工程师', group: 'frontend', engine: 'rules' }, { type: 'set_tech_group', group: 'mobile' }], state)
+    expect(state.tech).toEqual({ group: 'mobile', forTitle: '前端工程师', engine: 'manual', loading: false })
   })
 })
 
 describe('逐项引导', () => {
   it('届别 / 经验随招聘类型联动', () => {
     let state = run([{ type: 'set_mode', mode: 'guided' }, { type: 'patch_role', patch: { title: '产品经理' } }])
-    expect(guidedQuestions(state.brief)).toEqual(['title', 'scene', 'location', 'hire_type', 'level'])
+    expect(guidedQuestions(state.brief)).toEqual(['title', 'scene', 'locations', 'hire_type', 'level'])
     state = run([{ type: 'patch_role', patch: { hire_type: '校招' } }, { type: 'patch_role', patch: { cohort: '2026届' } }], state)
-    expect(guidedQuestions(state.brief)).toEqual(['title', 'scene', 'location', 'hire_type', 'cohort', 'level'])
+    expect(guidedQuestions(state.brief)).toEqual(['title', 'scene', 'locations', 'hire_type', 'cohort', 'level'])
     state = run([{ type: 'patch_role', patch: { hire_type: '社招' } }], state)
     expect(state.brief.role.cohort).toBe('')
     expect(guidedQuestions(state.brief)).toContain('experience')

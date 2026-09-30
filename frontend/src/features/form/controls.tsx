@@ -1,9 +1,10 @@
-import { ChevronDown, Globe, Plus } from 'lucide-react'
+import { ChevronDown, Globe, Plus, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Chip, Tag } from '../../components/ui/Chip'
 import { fieldClass } from '../../components/ui/field'
 import { cn } from '../../lib/cn'
+import { ALL_CITIES, HOT_CITIES, REMOTE_OPTION } from '../../lib/parseHiring'
 import { hostOf, validateUrl } from '../../lib/url'
 
 /** 受控表单控件：值由 useStudio 统一管理，控件只负责展示与交互 */
@@ -68,7 +69,7 @@ export function QuickPicks({ items, onPick, label }: { items: string[]; onPick: 
     <div className="flex flex-wrap items-center gap-1.5">
       {label && <span className="mr-0.5 text-xs text-zinc-400">{label}</span>}
       {items.map((item) => (
-        <Chip key={item} onClick={() => onPick(item)} className="h-7 text-xs">
+        <Chip key={item} onClick={() => onPick(item)} className="h-auto! min-h-7 py-1 text-left text-xs leading-5">
           {item}
         </Chip>
       ))}
@@ -285,6 +286,7 @@ export function ChoiceCards({ options, value, onChange }: { options: Option[]; v
 export function SelectBox({
   value,
   options,
+  labels,
   placeholder,
   onChange,
   className,
@@ -292,6 +294,8 @@ export function SelectBox({
 }: {
   value: string
   options: string[]
+  /** 选项的显示名，缺省时直接显示值 */
+  labels?: Record<string, string>
   placeholder: string
   onChange: (value: string) => void
   className?: string
@@ -309,7 +313,7 @@ export function SelectBox({
         </option>
         {options.map((o) => (
           <option key={o} value={o} className="text-zinc-900">
-            {o}
+            {labels?.[o] ?? o}
           </option>
         ))}
       </select>
@@ -470,6 +474,112 @@ export function MultiChips({
         <Button size="sm" variant="secondary" onClick={add} disabled={!custom.trim()} className="h-9" aria-label="添加">
           <Plus className="size-4" />
         </Button>
+      </div>
+    </div>
+  )
+}
+
+/** 工作地点多选：已选城市以标签显示在输入框内，输入可搜索或添加词表外的城市，下方是常用城市快捷选择 */
+export function CityMultiSelect({ value, onChange, autoFocus }: { value: string[]; onChange: (value: string[]) => void; autoFocus?: boolean }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const inputRef = useAutoFocus<HTMLInputElement>(autoFocus)
+  const q = query.trim()
+  const pool = [...ALL_CITIES, REMOTE_OPTION]
+  const matches = q ? pool.filter((c) => c.includes(q) && !value.includes(c)).slice(0, 6) : []
+  const custom = q && q.length <= 20 && !pool.includes(q) && !value.includes(q) ? q : null
+  const options = [...matches, ...(custom ? [custom] : [])]
+
+  const add = (city: string) => {
+    if (!value.includes(city)) onChange([...value, city])
+    setQuery('')
+    setActive(0)
+  }
+  const remove = (city: string) => onChange(value.filter((c) => c !== city))
+  const toggle = (city: string) => (value.includes(city) ? remove(city) : add(city))
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return
+    if (options.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault()
+      setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (options.length) add(options[Math.min(active, options.length - 1)])
+    } else if (e.key === 'Backspace' && !query && value.length) {
+      remove(value[value.length - 1])
+    } else if (e.key === 'Escape') setOpen(false)
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <div className="relative">
+        <div
+          onClick={() => inputRef.current?.focus()}
+          className="flex min-h-11 w-full cursor-text flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 shadow-[0_1px_2px_rgb(24_24_27/0.04)] transition focus-within:border-violet-300 focus-within:ring-4 focus-within:ring-violet-500/10"
+        >
+          {value.map((city) => (
+            <span key={city} className="ai-border inline-flex h-7 items-center gap-1 rounded-lg pr-1 pl-2.5 text-[13px] text-violet-700 [--ai-fill:var(--color-violet-50)]">
+              {city}
+              <button
+                type="button"
+                aria-label={`移除${city}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  remove(city)
+                }}
+                className="grid size-5 place-items-center rounded-md text-violet-400 hover:bg-violet-100 hover:text-violet-700"
+              >
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setOpen(true)
+              setActive(0)
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={onKeyDown}
+            placeholder={value.length ? '继续添加' : '输入城市搜索，回车添加'}
+            maxLength={20}
+            aria-label="添加工作地点"
+            className="h-7 min-w-28 flex-1 bg-transparent px-1 text-[15px] text-zinc-900 outline-none placeholder:text-zinc-400"
+          />
+        </div>
+        {open && options.length > 0 && (
+          <ul role="listbox" className="absolute top-full left-0 z-20 mt-1.5 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white p-1 shadow-float">
+            {options.map((city, i) => (
+              <li key={city}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={i === active}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    add(city)
+                  }}
+                  className={cn('w-full rounded-lg px-3 py-2 text-left text-sm', i === active ? 'bg-violet-50 text-violet-700' : 'text-zinc-700 hover:bg-zinc-50')}
+                >
+                  {city === custom ? `添加「${city}」` : city}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-0.5 text-xs text-zinc-400">常用</span>
+        {[...HOT_CITIES, REMOTE_OPTION].map((city) => (
+          <Chip key={city} selected={value.includes(city)} onClick={() => toggle(city)} className="h-7 text-xs">
+            {city}
+          </Chip>
+        ))}
       </div>
     </div>
   )

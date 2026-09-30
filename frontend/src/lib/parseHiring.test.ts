@@ -6,7 +6,7 @@ describe('parseHiring', () => {
     expect(parseHiring('AI 产品经理,负责金融场景下的大模型应用产品,base 杭州,2026 届校招')).toEqual({
       title: 'AI 产品经理',
       scene: '金融场景下的大模型应用产品',
-      location: '杭州',
+      locations: ['杭州'],
       hire_type: '校招',
       cohort: '2026届',
     })
@@ -16,7 +16,7 @@ describe('parseHiring', () => {
     expect(parseHiring('招一个杭州的后端工程师，3-5年经验，社招，负责支付系统')).toEqual({
       title: '后端工程师',
       scene: '支付系统',
-      location: '杭州',
+      locations: ['杭州'],
       hire_type: '社招',
       experience: '3-5年',
     })
@@ -25,7 +25,7 @@ describe('parseHiring', () => {
   it('同一分句里的届别与实习', () => {
     expect(parseHiring('2027届数据分析实习，工作地点：上海')).toEqual({
       title: '数据分析',
-      location: '上海',
+      locations: ['上海'],
       hire_type: '实习',
       cohort: '2027届',
     })
@@ -36,7 +36,7 @@ describe('parseHiring', () => {
       title: '算法工程师',
       scene: '推荐系统',
       experience: '5年以上',
-      location: '远程',
+      locations: ['远程'],
     })
   })
 
@@ -44,6 +44,12 @@ describe('parseHiring', () => {
     const parsed = parseHiring('前端工程师，需要能适应出差，熟悉英文')
     expect(parsed.title).toBe('前端工程师')
     expect(parsed.extra).toBe('需要能适应出差，熟悉英文')
+  })
+
+  it('识别多个工作地点与远程', () => {
+    expect(parseHiring('后端工程师，base 杭州/上海，可远程').locations).toEqual(['杭州', '上海', '远程'])
+    expect(parseHiring('产品经理，北京、深圳均可')).toEqual({ title: '产品经理', locations: ['北京', '深圳'] })
+    expect(parseHiring('运营专员，工作地点：绍兴').locations).toEqual(['绍兴'])
   })
 
   it('空输入', () => {

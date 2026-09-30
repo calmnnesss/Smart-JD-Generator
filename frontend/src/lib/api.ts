@@ -1,4 +1,4 @@
-import type { BriefDraft, ComposePreview, GenerateEvent, RoleMode } from '../types'
+import type { BriefDraft, ComposePreview, Engine, GenerateEvent, RoleMode, RoleParseResult, TechGroup } from '../types'
 import { createSseParser, toGenerateEvent } from './sse'
 
 const CLIENT_ID_KEY = 'smart-jd:client-id'
@@ -25,7 +25,7 @@ export function toPayload(brief: BriefDraft, mode: RoleMode) {
     role: {
       title: role.title.trim(),
       scene: orNull(role.scene),
-      location: orNull(role.location),
+      locations: role.locations,
       hire_type: role.hire_type || null,
       cohort: orNull(role.cohort),
       experience: orNull(role.experience),
@@ -39,6 +39,39 @@ export function toPayload(brief: BriefDraft, mode: RoleMode) {
   }
 }
 
+async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  })
+  if (!res.ok) throw new Error(await errorMessage(res))
+  return res.json()
+}
+
+export async function fetchHealth(): Promise<{ configured: boolean; llm_configured: boolean }> {
+  const res = await fetch('/api/health')
+  if (!res.ok) throw new Error(await errorMessage(res))
+  return res.json()
+}
+
+export async function fetchTechGroups(): Promise<TechGroup[]> {
+  const res = await fetch('/api/tech-groups')
+  if (!res.ok) throw new Error(await errorMessage(res))
+  return res.json()
+}
+
+/** 用中间层 LLM 拆解一句话；LLM 未配置或调用失败时抛错，由调用方回退到本地规则 */
+export function parseRoleWithLlm(text: string, signal?: AbortSignal): Promise<RoleParseResult> {
+  return postJson('/api/parse-role', { text }, signal)
+}
+
+/** 判断岗位属于哪个技术栈标签组（后端在 LLM 不可用时自动回退到关键词规则） */
+export function classifyRole(title: string, scene: string): Promise<{ category: string; engine: Engine }> {
+  return postJson('/api/classify-role', { title, scene: scene || null })
+}
+
 async function errorMessage(res: Response): Promise<string> {
   try {
     const body = await res.json()
@@ -50,14 +83,8 @@ async function errorMessage(res: Response): Promise<string> {
   return res.status >= 500 ? '服务暂时不可用，请稍后再试' : `请求失败（${res.status}）`
 }
 
-export async function fetchComposePreview(brief: BriefDraft, mode: RoleMode): Promise<ComposePreview> {
-  const res = await fetch('/api/compose', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toPayload(brief, mode)),
-  })
-  if (!res.ok) throw new Error(await errorMessage(res))
-  return res.json()
+export function fetchComposePreview(brief: BriefDraft, mode: RoleMode): Promise<ComposePreview> {
+  return postJson('/api/compose', toPayload(brief, mode))
 }
 
 /** 调用 /api/generate 并逐个回调精简后的生成事件。EventSource 不支持 POST，所以用 fetch 读流。 */

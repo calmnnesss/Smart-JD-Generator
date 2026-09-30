@@ -43,8 +43,8 @@ def client_with():
 
 
 def test_health(client_with):
-    res = client_with(Settings(dify_api_key="", dify_mock=True)).get("/api/health")
-    assert res.json() == {"status": "ok", "mock": True, "configured": False}
+    res = client_with(Settings(dify_api_key="", dify_mock=True, llm_api_key="")).get("/api/health")
+    assert res.json() == {"status": "ok", "mock": True, "configured": False, "llm_configured": False}
 
 
 def test_compose_preview(client_with, sample_payload):
@@ -73,7 +73,7 @@ def test_generate_mock_mode(client_with, sample_payload):
     names = [n for n, _ in events]
     assert names[0] == "stages" and names[-1] == "result"
     running = [d["id"] for n, d in events if n == "stage" and d["status"] == "running"]
-    assert running == ["fetch", "search", "analyze", "profile", "draft", "review"]
+    assert running == ["fetch", "analyze", "profile", "draft", "review"]
     result = events[-1][1]
     assert result["jd_markdown"].startswith("# AI 产品经理")
     assert "该岗位的直属汇报对象及跨部门协作机制" not in result["missing_info"]
@@ -142,3 +142,34 @@ def test_generate_reports_failed_workflow(client_with, sample_payload):
     assert events[-1] == ("error", {"message": "生成过程中出现问题，请稍后重试", "retryable": True})
     # 技术细节只记录在服务端日志，不返回给前端
     assert "LLM1" not in json.dumps(events, ensure_ascii=False)
+
+
+def test_tech_groups(client_with):
+    groups = client_with(Settings()).get("/api/tech-groups").json()
+    assert groups[0]["id"] == "ai_product" and "RAG" in groups[0]["tags"]
+
+
+def test_parse_role_without_llm_returns_503(client_with):
+    res = client_with(Settings(llm_api_key="")).post("/api/parse-role", json={"text": "AI 产品经理，base 杭州"})
+    assert res.status_code == 503
+
+
+def test_parse_and_classify_with_llm(client_with):
+    from app.llm import LLMClient
+    from app.main import get_llm_client
+
+    def handler(request):
+        system = json.loads(request.content)["messages"][0]["content"]
+        content = {"category": "product"} if "岗位分类器" in system else {"title": "产品经理", "locations": ["上海"]}
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(content, ensure_ascii=False)}}]})
+
+    client = client_with(Settings(llm_api_key="sk-real"))
+    app.dependency_overrides[get_llm_client] = lambda: LLMClient("https://x/v1", "sk", "qwen-flash", transport=httpx.MockTransport(handler))
+    parsed = client.post("/api/parse-role", json={"text": "产品经理，上海"}).json()
+    assert parsed["title"] == "产品经理" and parsed["locations"] == ["上海"] and parsed["engine"] == "llm"
+    assert client.post("/api/classify-role", json={"title": "产品经理X"}).json() == {"category": "product", "engine": "llm"}
+
+
+def test_classify_without_llm_uses_rules(client_with):
+    res = client_with(Settings(llm_api_key="")).post("/api/classify-role", json={"title": "Java 开发工程师"})
+    assert res.json() == {"category": "backend", "engine": "rules"}

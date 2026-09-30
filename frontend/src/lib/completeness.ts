@@ -20,7 +20,7 @@ export function scoreBrief(brief: BriefDraft): Completeness {
     },
     { weight: 10, ok: !!role.title.trim() },
     { weight: 10, ok: !!role.scene.trim(), tip: '补充业务场景，岗位职责会更聚焦' },
-    { weight: 5, ok: !!role.location.trim(), tip: '补充工作地点' },
+    { weight: 5, ok: role.locations.length > 0, tip: '补充工作地点' },
     { weight: 5, ok: !!role.hire_type },
     {
       weight: 5,

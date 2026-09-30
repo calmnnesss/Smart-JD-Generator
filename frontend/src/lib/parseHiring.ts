@@ -1,10 +1,10 @@
 import type { HireType } from '../types'
 
-/** 一句话招聘需求的规则解析结果 */
+/** 一句话招聘需求的规则解析结果（LLM 不可用时的本地回退） */
 export interface ParsedHiring {
   title?: string
   scene?: string
-  location?: string
+  locations?: string[]
   hire_type?: HireType
   cohort?: string
   experience?: string
@@ -12,20 +12,21 @@ export interface ParsedHiring {
 }
 
 export const HOT_CITIES = ['杭州', '上海', '北京', '深圳', '广州', '成都']
+export const REMOTE_OPTION = '远程'
 export const MORE_CITIES = [
   '南京', '苏州', '武汉', '西安', '重庆', '天津', '长沙', '厦门', '合肥', '青岛', '宁波', '郑州',
   '济南', '福州', '大连', '珠海', '东莞', '无锡', '佛山', '南昌', '昆明', '沈阳', '香港', '新加坡',
 ]
-const CITIES = [...HOT_CITIES, ...MORE_CITIES]
+export const ALL_CITIES = [...HOT_CITIES, ...MORE_CITIES]
 
 const COHORT = /(20\d{2})\s*届/
 const EXPERIENCE_RANGE = /(\d{1,2})\s*[-~～至到]\s*(\d{1,2})\s*年/
 const EXPERIENCE_MIN = /(\d{1,2})\s*年以上/
 const EXPERIENCE_ANY = /经验不限/
-const LOCATION_MARKER = /(?:base|工作地点|地点|坐标|驻地?)\s*[:：在于]?\s*([一-龥]{2,4})/i
+const LOCATION_MARKER = /(?:base|工作地点|地点|坐标|驻地?)\s*[:：在于]?\s*((?:[一-龥]{2,4}\s*[/、和或及]?\s*)+)/i
 const REMOTE = /远程/
 const TITLE_PREFIX = /^(?:我们)?(?:想|要|需要)?(?:招聘?|招募)?(?:一名|一位|一个|几名|若干)?/
-const FILLER = /^[\s,，;；。、:：()（）\-~]*(?:base|的|经验|要求|岗位|方向|年限)?[\s,，;；。、:：()（）\-~]*$/i
+const FILLER = /^[\s,，;；。、:：()（）\-~]*(?:base|的|经验|要求|岗位|方向|年限|均可|皆可|都可以?)?[\s,，;；。、:：()（）\-~]*$/i
 
 function detectHireType(text: string): HireType | undefined {
   if (/校招|校园招聘|应届/.test(text)) return '校招'
@@ -45,6 +46,10 @@ export function parseHiring(input: string): ParsedHiring {
     .map((c) => c.trim())
     .filter(Boolean)
   const leftovers: string[] = []
+  const locations: string[] = []
+  const addLocation = (city: string) => {
+    if (!locations.includes(city)) locations.push(city)
+  }
 
   clauses.forEach((clause, index) => {
     let rest = clause
@@ -77,20 +82,24 @@ export function parseHiring(input: string): ParsedHiring {
 
     const marker = rest.match(LOCATION_MARKER)
     if (marker) {
-      result.location ??= marker[1]
-      rest = rest.replace(marker[0], ' ')
-    } else if (REMOTE.test(rest) && !result.location) {
-      result.location = '远程'
-      rest = rest.replace(/远程(?:办公)?/, ' ')
-    } else {
-      const city = CITIES.find((c) => rest.includes(c))
-      if (city && !result.location) {
-        result.location = city
-        rest = rest.replace(new RegExp(`(?:在|位于)?${city}(?:的)?`), ' ')
+      // 「base 杭州/上海」：拆出多个城市，词表里的城市取词表名，其余 2-3 字的地名原样保留
+      for (const token of marker[1].split(/[\s/、和或及]+/).filter(Boolean)) {
+        const known = [...ALL_CITIES, REMOTE_OPTION].filter((c) => token.includes(c))
+        if (known.length) known.forEach(addLocation)
+        else if (token.length <= 3) addLocation(token)
       }
+      rest = rest.replace(marker[0], ' ')
+    }
+    if (REMOTE.test(rest)) {
+      addLocation(REMOTE_OPTION)
+      rest = rest.replace(/(?:可|支持)?远程(?:办公)?/, ' ')
+    }
+    for (const city of ALL_CITIES.filter((c) => rest.includes(c))) {
+      addLocation(city)
+      rest = rest.replace(new RegExp(`(?:在|位于)?${city}(?:的)?`), ' ')
     }
 
-    rest = rest.replace(/\s+/g, ' ').trim()
+    rest = rest.replace(/\s+/g, ' ').replace(/^[\s、/]+|[\s、/]+$/g, '').trim()
     if (!rest || FILLER.test(rest)) return
 
     if (rest.startsWith('负责')) {
@@ -107,6 +116,7 @@ export function parseHiring(input: string): ParsedHiring {
     leftovers.push(rest)
   })
 
+  if (locations.length) result.locations = locations
   if (leftovers.length) result.extra = leftovers.join('，')
   return result
 }

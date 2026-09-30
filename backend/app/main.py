@@ -6,8 +6,19 @@ from fastapi.responses import FileResponse, StreamingResponse
 from .compose import compose_inputs
 from .config import Settings, get_settings
 from .dify import DifyClient
+from .llm import LLMClient, LLMError
 from .pipeline import generate_events
-from .schemas import Brief, ComposePreview
+from .role_parser import classify_role, parse_role
+from .schemas import (
+    Brief,
+    ClassifyRoleRequest,
+    ClassifyRoleResponse,
+    ComposePreview,
+    ParsedRole,
+    ParseRoleRequest,
+    TechGroupOut,
+)
+from .tech_groups import TECH_GROUPS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -16,6 +27,13 @@ app = FastAPI(title="Smart JD Generator", docs_url=None, redoc_url=None)
 
 def get_dify_client(settings: Settings = Depends(get_settings)) -> DifyClient:
     return DifyClient(settings.dify_base_url, settings.dify_api_key)
+
+
+def get_llm_client(settings: Settings = Depends(get_settings)) -> LLMClient | None:
+    """未配置 LLM_API_KEY 时返回 None，调用方回退到本地规则"""
+    if not settings.llm_configured:
+        return None
+    return LLMClient(settings.llm_base_url, settings.llm_api_key, settings.llm_model, timeout=settings.llm_timeout)
 
 
 async def generation_guard(request: Request) -> None:
@@ -32,7 +50,12 @@ def _compose(brief: Brief) -> dict[str, str]:
 
 @app.get("/api/health")
 def health(settings: Settings = Depends(get_settings)):
-    return {"status": "ok", "mock": settings.dify_mock, "configured": settings.api_key_configured}
+    return {
+        "status": "ok",
+        "mock": settings.dify_mock,
+        "configured": settings.api_key_configured,
+        "llm_configured": settings.llm_configured,
+    }
 
 
 @app.post("/api/compose", response_model=ComposePreview)
@@ -44,6 +67,29 @@ def compose(brief: Brief):
         specific_benefits=inputs["specific_benefits"],
         tech_stack=inputs["tech_stack"],
     )
+
+
+@app.get("/api/tech-groups", response_model=list[TechGroupOut])
+def tech_groups():
+    return [TechGroupOut(id=g.id, label=g.label, tags=list(g.tags)) for g in TECH_GROUPS]
+
+
+@app.post("/api/parse-role", response_model=ParsedRole, dependencies=[Depends(generation_guard)])
+async def parse_role_endpoint(body: ParseRoleRequest, client: LLMClient | None = Depends(get_llm_client)):
+    """用 LLM 拆解一句话招聘需求；不可用时返回 503，由前端回退到本地规则识别"""
+    if client is None:
+        raise HTTPException(status_code=503, detail="未配置 LLM_API_KEY")
+    try:
+        return await parse_role(client, body.text)
+    except LLMError as exc:
+        logging.getLogger(__name__).warning("一句话识别失败：%s", exc)
+        raise HTTPException(status_code=502, detail="AI 识别暂时不可用") from exc
+
+
+@app.post("/api/classify-role", response_model=ClassifyRoleResponse, dependencies=[Depends(generation_guard)])
+async def classify_role_endpoint(body: ClassifyRoleRequest, client: LLMClient | None = Depends(get_llm_client)):
+    category, engine = await classify_role(client, body.title, body.scene)
+    return ClassifyRoleResponse(category=category, engine=engine)
 
 
 @app.post("/api/generate", dependencies=[Depends(generation_guard)])

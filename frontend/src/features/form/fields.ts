@@ -11,7 +11,7 @@ export const STEPS: { key: StepKey; label: string }[] = [
 ]
 
 /** 岗位需求里可以单独填写的字段 */
-export type RoleKey = 'title' | 'scene' | 'location' | 'hire_type' | 'cohort' | 'experience' | 'level' | 'extra'
+export type RoleKey = 'title' | 'scene' | 'locations' | 'hire_type' | 'cohort' | 'experience' | 'level' | 'extra'
 
 /** 简报里可以定位、高亮的字段 */
 export type FieldKey = 'name' | 'domain' | 'description' | RoleKey | 'benefits' | 'tech_stack'
@@ -32,7 +32,7 @@ export const ROLE_FIELDS: Record<RoleKey, RoleFieldDef> = {
     hint: '会成为岗位职责的主线，例如「金融场景下的大模型应用产品」',
     optional: true,
   },
-  location: { label: '工作地点', question: () => '工作地点在哪里？' },
+  locations: { label: '工作地点', question: () => '工作地点在哪里？', hint: '可以多选；支持远程的话把「远程」也选上' },
   hire_type: { label: '招聘类型', question: () => '这是校招、社招还是实习岗位？' },
   cohort: {
     label: '届别',
@@ -46,7 +46,7 @@ export const ROLE_FIELDS: Record<RoleKey, RoleFieldDef> = {
 
 /** 逐项引导的问题顺序：届别 / 经验随招聘类型联动 */
 export function guidedQuestions(brief: BriefDraft): RoleKey[] {
-  const keys: RoleKey[] = ['title', 'scene', 'location', 'hire_type']
+  const keys: RoleKey[] = ['title', 'scene', 'locations', 'hire_type']
   if (brief.role.hire_type === '社招') keys.push('experience')
   else if (brief.role.hire_type) keys.push('cohort')
   keys.push('level')
@@ -55,7 +55,7 @@ export function guidedQuestions(brief: BriefDraft): RoleKey[] {
 
 /** 一句话识别模式下展示的字段 */
 export function quickFields(brief: BriefDraft): RoleKey[] {
-  const keys: RoleKey[] = ['title', 'scene', 'location', 'hire_type']
+  const keys: RoleKey[] = ['title', 'scene', 'locations', 'hire_type']
   if (brief.role.hire_type === '社招') keys.push('experience')
   else if (brief.role.hire_type) keys.push('cohort')
   keys.push('level', 'extra')
@@ -82,7 +82,7 @@ export function stepIssues(brief: BriefDraft, step: StepKey): StepIssues {
   if (step === 'role') {
     if (!role.title.trim()) errors.title = '请填写岗位名称'
     if (!role.scene.trim()) warnings.push('scene')
-    if (!role.location.trim()) warnings.push('location')
+    if (!role.locations.length) warnings.push('locations')
     if (!role.hire_type) warnings.push('hire_type')
     else if (role.hire_type === '社招' && !role.experience) warnings.push('experience')
     else if (role.hire_type !== '社招' && !role.cohort) warnings.push('cohort')

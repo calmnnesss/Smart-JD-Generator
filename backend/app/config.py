@@ -28,12 +28,23 @@ class Settings(BaseSettings):
     # Mock 回放速度系数，0 表示不等待（测试用）
     mock_delay_scale: float = 1.0
 
+    # 中间层 LLM（通义千问，OpenAI 兼容接口）：一句话识别、岗位类别判断
+    llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    llm_api_key: str = ""
+    llm_model: str = "qwen-flash"
+    llm_timeout: float = 20
+
     # 前端构建产物目录；为空时自动探测 ../frontend/dist
     static_dir: Path | None = None
 
     @property
     def api_key_configured(self) -> bool:
         key = self.dify_api_key.strip()
+        return bool(key) and "xxxx" not in key
+
+    @property
+    def llm_configured(self) -> bool:
+        key = self.llm_api_key.strip()
         return bool(key) and "xxxx" not in key
 
     @property

@@ -1,27 +1,32 @@
 # Smart JD · JD 智能生成器
 
-用分步表单收集公司和岗位信息，交给 Dify 工作流去查阅官网与公开资料、提炼亮点、起草并审校，最后得到一份**不编造**的招聘启事底稿。
+用分步表单收集公司和岗位信息，交给 Dify 工作流去读取公司官网、提炼亮点、起草并审校，最后得到一份**不编造**的招聘启事底稿。
 
 - **分步表单**：公司信息 → 岗位需求 → 福利与技术栈 → 确认生成。
 - **岗位需求两种填法**：两种方式写入同一份岗位信息，可以随时切换。
-  - 一句话识别：输入一句话，前端按规则拆出岗位、场景、地点、届别、经验；没识别出的字段标为「待补充」，并直接给出对应控件。
+  - 一句话识别：由中间层 LLM（通义千问）把一句话拆成岗位、场景、地点、届别、经验等字段；没识别出的字段标为「待补充」，并直接给出对应控件。LLM 未配置或调用失败时，自动回退到本地规则识别。
   - 逐项引导：每屏只问一项，用可搜索下拉、单选卡、分段选择等控件填写，选择后自动进入下一项。
+- **工作地点多选**：输入搜索或点选常用城市，支持词表外的城市和「远程」。
+- **技术栈标签组**：20 组人工整理的预设标签；由 LLM 判断岗位属于哪一组（只从固定分组中选，不生成新标签），也可以手动切换分组。
 - **实时招聘简报**：随填写实时更新，显示信息完整度，点击任意字段跳到对应位置修改。
-- **真实进度**：生成过程按 Dify 节点事件推进，依次是访问官网 → 检索公开信息 → 提炼亮点 → 能力画像 → 撰写初稿 → 审校定稿。
+- **真实进度**：生成过程按 Dify 节点事件推进，依次是访问官网 → 提炼亮点 → 能力画像 → 撰写初稿 → 审校定稿。
 - **导出**：可复制 Markdown、复制纯文本（方便粘贴到招聘平台），也可下载 `.md` 文件。
 
-信息收集环节不接 LLM，界面也不模拟对话；AI 只出现在真正调用它的地方，也就是 Dify 工作流的生成过程。
+界面不模拟对话，AI 只出现在真正调用它的地方：一句话识别、技术栈分组判断（中间层 LLM），以及 JD 生成（Dify 工作流）。
 
 ## 架构
 
 ```
 浏览器（React SPA）
-  │  POST /api/generate   结构化招聘简报（JSON）
+  │  POST /api/parse-role、/api/classify-role   一句话识别、技术栈分组
+  │  POST /api/generate                         结构化招聘简报（JSON）
   ▼
-FastAPI 薄后端（校验 → 拼接工作流入参 → 流式调用 Dify → 精简事件后转发 SSE）
-  │  POST {DIFY_BASE_URL}/workflows/run   response_mode=streaming
-  ▼
-Dify 工作流（JD_generator_v3）
+FastAPI 薄后端
+  ├─ 中间层 LLM：通义千问（百炼 OpenAI 兼容接口，JSON 输出，结果逐字段校验）
+  └─ 校验 → 拼接工作流入参 → 流式调用 Dify → 精简事件后转发 SSE
+       │  POST {DIFY_BASE_URL}/workflows/run   response_mode=streaming
+       ▼
+     Dify 工作流（JD_generator_v3）
 ```
 
 - **API Key 只在后端**：前端拿不到 Key，也看不到节点名、prompt 等技术细节。
@@ -38,6 +43,9 @@ backend/    FastAPI + httpx
   app/dify.py      Dify 流式客户端
   app/stages.py    Dify 节点 → 用户可见阶段
   app/output.py    工作流输出解析
+  app/llm.py       中间层 LLM 客户端（通义千问）
+  app/role_parser.py  一句话识别与岗位分类的 prompt、输出校验
+  app/tech_groups.py  技术栈预设标签组与关键词回退规则
   app/mock.py      Mock 模式（回放一次真实运行的输出）
 deploy/     Nginx 反向代理示例
 ```
@@ -75,6 +83,9 @@ npm run dev
 | `DIFY_OUTPUT_JD_KEY` | `final_jd` | End 节点里 JD 正文的变量名 |
 | `DIFY_OUTPUT_MISSING_KEY` | `missing_info` | End 节点里待补充清单的变量名 |
 | `GENERATION_TIMEOUT` | `300` | 单次生成最长等待（秒） |
+| `LLM_API_KEY` | — | 阿里云百炼（DashScope）API Key，用于一句话识别和技术栈分组；不填则回退到本地规则 |
+| `LLM_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 百炼 OpenAI 兼容接口地址 |
+| `LLM_MODEL` | `qwen-flash` | 中间层使用的模型 |
 | `DIFY_MOCK` | `false` | Mock 模式，见下文 |
 
 ### Mock 模式
@@ -134,6 +145,6 @@ docker compose up -d --build
 ## 后续
 
 - 落地页正式内容（项目背景、工作流设计、迭代记录）
-- AI 对话模式：接入 LLM 中间层，从自由对话中抽取招聘字段、回答旁支问题并拉回主题。它写入的是同一份 `Brief`，可以作为岗位需求的第三种填法
+- AI 对话模式：复用已有的 LLM 中间层，从自由对话中抽取招聘字段、回答旁支问题并拉回主题。它写入的是同一份 `Brief`，可以作为岗位需求的第三种填法
 - 利用工作流返回的空缺建议（`missing_info`）补充信息后改进再生成：后端的解析和 `supplements` 拼接已经就绪，前端暂未使用
 - 访问防护（限流、访问码）：在 `backend/app/main.py` 的 `generation_guard` 中实现，业务代码不用改

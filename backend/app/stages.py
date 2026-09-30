@@ -3,7 +3,7 @@
 映射优先级：
 1. NODE_TITLE_OVERRIDES 里的精确标题；
 2. 节点标题中的关键词；
-3. 按节点类型顺延：LLM 节点依次填入下一个尚未开始的撰写类阶段，工具/HTTP 节点依次填入检索类阶段。
+3. 按节点类型顺延：LLM 节点依次填入下一个尚未开始的撰写类阶段，工具/HTTP 节点归入「访问公司官网」。
 
 后端日志会打印每个节点的标题和类型，首次用真实工作流运行后，可把标题填进 NODE_TITLE_OVERRIDES。
 """
@@ -25,8 +25,7 @@ class Stage:
 
 
 STAGES: tuple[Stage, ...] = (
-    Stage("fetch", "访问公司官网", "research", ("官网", "抓取", "网页", "爬取", "crawl", "scrape", "fetch", "jina", "firecrawl")),
-    Stage("search", "检索公开信息", "research", ("搜索", "检索", "联网", "search", "tavily", "bing", "google", "serp")),
+    Stage("fetch", "访问公司官网", "research", ("官网", "抓取", "网页", "爬取", "搜索", "检索", "crawl", "scrape", "fetch", "jina", "firecrawl", "search")),
     Stage("analyze", "提炼公司亮点", "llm", ("分析", "文化", "卖点", "洞察", "analy", "insight")),
     Stage("profile", "构建能力画像", "llm", ("画像", "能力", "技能", "profile", "skill", "persona")),
     Stage("draft", "撰写 JD 初稿", "llm", ("初稿", "撰写", "草稿", "draft", "write")),
@@ -37,7 +36,7 @@ STAGES: tuple[Stage, ...] = (
 NODE_TITLE_OVERRIDES: dict[str, str] = {}
 
 # 关键词匹配顺序：更具体的阶段优先
-_MATCH_ORDER = ("review", "profile", "analyze", "draft", "search", "fetch")
+_MATCH_ORDER = ("review", "profile", "analyze", "draft", "fetch")
 
 _IGNORED_TYPES = {
     "start", "end", "answer", "if-else", "variable-aggregator", "variable-assigner",

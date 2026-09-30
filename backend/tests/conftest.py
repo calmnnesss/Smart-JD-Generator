@@ -11,7 +11,7 @@ SAMPLE = {
     "role": {
         "title": "AI 产品经理",
         "scene": "金融场景下的大模型应用产品",
-        "location": "杭州",
+        "locations": ["杭州"],
         "hire_type": "校招",
         "cohort": "2026届",
     },

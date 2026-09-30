@@ -26,7 +26,7 @@ class Company(BaseModel):
 class Role(BaseModel):
     title: _text(100, 1)
     scene: _optional(200) = None
-    location: _optional(60) = None
+    locations: list[_text(20, 1)] = Field(default_factory=list, max_length=10)
     hire_type: HireType | None = None
     cohort: _optional(20) = None
     experience: _optional(20) = None
@@ -56,3 +56,38 @@ class ComposePreview(BaseModel):
     hiring_needs: str
     specific_benefits: str
     tech_stack: str
+
+
+class ParseRoleRequest(BaseModel):
+    text: _text(300, 1)
+
+
+class ParsedRole(BaseModel):
+    """LLM 从一句话里抽取的岗位字段；未提到的字段为空"""
+
+    title: str | None = None
+    scene: str | None = None
+    locations: list[str] = Field(default_factory=list)
+    hire_type: HireType | None = None
+    cohort: str | None = None
+    experience: str | None = None
+    level: str | None = None
+    extra: str | None = None
+    category: str | None = None
+    engine: Literal["llm"] = "llm"
+
+
+class ClassifyRoleRequest(BaseModel):
+    title: _text(100, 1)
+    scene: _optional(200) = None
+
+
+class ClassifyRoleResponse(BaseModel):
+    category: str
+    engine: Literal["llm", "rules"]
+
+
+class TechGroupOut(BaseModel):
+    id: str
+    label: str
+    tags: list[str]

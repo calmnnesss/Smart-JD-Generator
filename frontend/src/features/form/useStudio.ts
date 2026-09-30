@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import { streamGenerate } from '../../lib/api'
-import { parseHiring, type ParsedHiring } from '../../lib/parseHiring'
+import { classifyRole, parseRoleWithLlm, streamGenerate } from '../../lib/api'
+import { parseHiring } from '../../lib/parseHiring'
 import { SAMPLE } from '../../lib/sample'
 import { normalizeUrl } from '../../lib/url'
-import { emptyBrief, type BriefDraft, type GenerateEvent, type RoleMode, type Run, type StageStatus } from '../../types'
+import {
+  emptyBrief,
+  type BriefDraft,
+  type Engine,
+  type GenerateEvent,
+  type RoleMode,
+  type RoleParseResult,
+  type Run,
+  type StageStatus,
+} from '../../types'
 import { firstBlockedStep, guidedQuestions, STEPS, type FieldKey, type RoleKey, type StepKey } from './fields'
 
 export interface StudioState {
@@ -15,6 +24,12 @@ export interface StudioState {
   appliedOneLiner: string
   /** 最近一次识别出值的字段 */
   detected: RoleKey[]
+  /** 正在识别的句子；识别结果回来时只接受与之相同的句子 */
+  parsingText: string | null
+  /** 最近一次识别使用的引擎：LLM 或本地规则 */
+  parseEngine: Engine | null
+  /** 技术栈推荐使用的标签组 */
+  tech: { group: string | null; forTitle: string; engine: Engine | 'manual' | null; loading: boolean }
   step: StepKey
   guidedIndex: number
   view: 'form' | 'result'
@@ -29,7 +44,11 @@ type Action =
   | { type: 'patch_company'; patch: Partial<BriefDraft['company']> }
   | { type: 'patch_role'; patch: Partial<BriefDraft['role']> }
   | { type: 'set_one_liner'; text: string }
-  | { type: 'apply_one_liner' }
+  | { type: 'parse_start'; text: string }
+  | { type: 'parse_done'; text: string; result: RoleParseResult; engine: Engine }
+  | { type: 'tech_start' }
+  | { type: 'tech_done'; title: string; group: string; engine: Engine }
+  | { type: 'set_tech_group'; group: string }
   | { type: 'set_mode'; mode: RoleMode }
   | { type: 'set_list'; key: 'benefits' | 'tech_stack'; items: string[] }
   | { type: 'goto_step'; step: StepKey }
@@ -45,7 +64,7 @@ type Action =
   | { type: 'reset' }
 
 // 一句话识别能写入的岗位字段（其他要求单独展示，不算「已识别」）
-const PARSED_KEYS: (RoleKey & keyof ParsedHiring)[] = ['title', 'scene', 'location', 'hire_type', 'cohort', 'experience']
+const PARSED_KEYS: RoleKey[] = ['title', 'scene', 'locations', 'hire_type', 'cohort', 'experience', 'level']
 
 export const initialState = (): StudioState => ({
   brief: emptyBrief(),
@@ -53,6 +72,9 @@ export const initialState = (): StudioState => ({
   oneLiner: '',
   appliedOneLiner: '',
   detected: [],
+  parsingText: null,
+  parseEngine: null,
+  tech: { group: null, forTitle: '', engine: null, loading: false },
   step: 'company',
   guidedIndex: 0,
   view: 'form',
@@ -125,29 +147,51 @@ export function reducer(state: StudioState, action: Action): StudioState {
     case 'set_one_liner':
       return { ...state, oneLiner: action.text }
 
-    case 'apply_one_liner': {
-      const text = state.oneLiner.trim()
-      if (!text || text === state.appliedOneLiner) return state
-      const parsed = parseHiring(text)
-      // 识别结果覆盖上一次写入的岗位字段；职级不在一句话的识别范围内，保留
+    case 'parse_start':
+      return { ...state, parsingText: action.text }
+
+    case 'parse_done': {
+      if (action.text !== state.parsingText) return state
+      const r = action.result
+      // 识别结果覆盖上一次写入的岗位字段；句子里没提职级时保留原值
       const role: BriefDraft['role'] = {
         ...state.brief.role,
-        title: parsed.title ?? '',
-        scene: parsed.scene ?? '',
-        location: parsed.location ?? '',
-        hire_type: parsed.hire_type ?? '',
-        cohort: parsed.cohort ?? '',
-        experience: parsed.experience ?? '',
-        extra: parsed.extra ?? '',
+        title: r.title ?? '',
+        scene: r.scene ?? '',
+        locations: r.locations ?? [],
+        hire_type: r.hire_type ?? '',
+        cohort: r.cohort ?? '',
+        experience: r.experience ?? '',
+        level: r.level ?? state.brief.role.level,
+        extra: r.extra ?? '',
       }
+      const detected = PARSED_KEYS.filter((key) => (key === 'locations' ? r.locations?.length : r[key as keyof RoleParseResult]))
+      const tech =
+        r.category && role.title
+          ? { group: r.category, forTitle: role.title.trim(), engine: action.engine, loading: false }
+          : state.tech
       return {
         ...state,
         brief: { ...state.brief, role },
-        appliedOneLiner: text,
-        detected: PARSED_KEYS.filter((key) => parsed[key]),
+        appliedOneLiner: action.text,
+        parsingText: null,
+        parseEngine: action.engine,
+        detected,
+        tech,
         lastChanged: changed(PARSED_KEYS),
       }
     }
+
+    case 'tech_start':
+      return { ...state, tech: { ...state.tech, loading: true } }
+
+    case 'tech_done':
+      // 岗位名称在判断期间被修改过，丢弃旧结果，等待重新判断
+      if (action.title !== state.brief.role.title.trim()) return { ...state, tech: { ...state.tech, loading: false } }
+      return { ...state, tech: { group: action.group, forTitle: action.title, engine: action.engine, loading: false } }
+
+    case 'set_tech_group':
+      return { ...state, tech: { group: action.group, forTitle: state.brief.role.title.trim(), engine: 'manual', loading: false } }
 
     case 'set_mode':
       return { ...state, roleMode: action.mode, guidedIndex: 0 }
@@ -216,52 +260,80 @@ export function useStudio() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
   const stateRef = useRef(state)
   const controller = useRef<AbortController | null>(null)
-  const timers = useRef<number[]>([])
+  // 示例填充的批次号：重新开始或卸载时递增，让进行中的填充停下
+  const fillToken = useRef(0)
 
   useEffect(() => {
     stateRef.current = state
   }, [state])
 
-  const clearTimers = useCallback(() => {
-    timers.current.forEach((t) => window.clearTimeout(t))
-    timers.current = []
-  }, [])
-
   useEffect(
     () => () => {
-      clearTimers()
+      fillToken.current++
       controller.current?.abort()
     },
-    [clearTimers],
+    [],
   )
 
   const reset = useCallback(() => {
-    clearTimers()
+    fillToken.current++
     controller.current?.abort()
     dispatch({ type: 'reset' })
-  }, [clearTimers])
+  }, [])
 
-  /** 逐项填入恒生电子样例，最后停在确认步 */
-  const fillSample = useCallback(() => {
+  /** 识别一句话：优先用中间层 LLM，不可用时回退到本地规则 */
+  const applyOneLiner = useCallback((explicit?: string): Promise<void> => {
+    const current = stateRef.current
+    const text = (explicit ?? current.oneLiner).trim()
+    if (!text || (explicit === undefined && (text === current.appliedOneLiner || text === current.parsingText))) {
+      return Promise.resolve()
+    }
+    dispatch({ type: 'parse_start', text })
+    return parseRoleWithLlm(text)
+      .then((result) => dispatch({ type: 'parse_done', text, result, engine: 'llm' }))
+      .catch(() => dispatch({ type: 'parse_done', text, result: parseHiring(text), engine: 'rules' }))
+  }, [])
+
+  /** 岗位名称变化后重新判断技术栈标签组；手动选择过的分组在岗位名称不变时保留 */
+  const ensureTechGroup = useCallback(() => {
+    const { brief, tech } = stateRef.current
+    const title = brief.role.title.trim()
+    if (!title || tech.forTitle === title || tech.loading) return
+    dispatch({ type: 'tech_start' })
+    classifyRole(title, brief.role.scene)
+      .then((r) => dispatch({ type: 'tech_done', title, group: r.category, engine: r.engine }))
+      .catch(() => dispatch({ type: 'tech_done', title, group: 'general', engine: 'rules' }))
+  }, [])
+
+  /** 逐项填入恒生电子样例（一句话识别走真实的识别流程），最后停在确认步 */
+  const fillSample = useCallback(async () => {
     reset()
-    const steps: Action[] = [
-      { type: 'filling', on: true },
-      { type: 'patch_company', patch: { name: SAMPLE.companyName } },
-      { type: 'patch_company', patch: { domain: normalizeUrl(SAMPLE.domain) } },
-      { type: 'patch_company', patch: { description: SAMPLE.description } },
-      { type: 'goto_step', step: 'role' },
-      { type: 'set_one_liner', text: SAMPLE.oneLiner },
-      { type: 'apply_one_liner' },
-      { type: 'goto_step', step: 'extras' },
-      { type: 'set_list', key: 'benefits', items: [...SAMPLE.benefits] },
-      { type: 'set_list', key: 'tech_stack', items: [...SAMPLE.techStack] },
-      { type: 'goto_step', step: 'confirm' },
-      { type: 'filling', on: false },
-    ]
-    steps.forEach((action, index) => {
-      timers.current.push(window.setTimeout(() => dispatch(action), index * 260))
-    })
-  }, [reset])
+    const token = ++fillToken.current
+    const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+    const run = async (action: Action, wait = 240) => {
+      if (token !== fillToken.current) throw new Error('cancelled')
+      dispatch(action)
+      await pause(wait)
+    }
+    try {
+      await run({ type: 'filling', on: true }, 0)
+      await run({ type: 'patch_company', patch: { name: SAMPLE.companyName } })
+      await run({ type: 'patch_company', patch: { domain: normalizeUrl(SAMPLE.domain) } })
+      await run({ type: 'patch_company', patch: { description: SAMPLE.description } })
+      await run({ type: 'goto_step', step: 'role' })
+      await run({ type: 'set_mode', mode: 'quick' }, 0)
+      await run({ type: 'set_one_liner', text: SAMPLE.oneLiner }, 300)
+      await applyOneLiner(SAMPLE.oneLiner)
+      await pause(600)
+      await run({ type: 'goto_step', step: 'extras' })
+      await run({ type: 'set_list', key: 'benefits', items: [...SAMPLE.benefits] })
+      await run({ type: 'set_list', key: 'tech_stack', items: [...SAMPLE.techStack] }, 400)
+      await run({ type: 'goto_step', step: 'confirm' }, 0)
+      await run({ type: 'filling', on: false }, 0)
+    } catch {
+      /* 被「重新开始」打断 */
+    }
+  }, [reset, applyOneLiner])
 
   const generate = useCallback(() => {
     const current = stateRef.current
@@ -298,7 +370,7 @@ export function useStudio() {
 
   const stop = useCallback(() => controller.current?.abort(), [])
 
-  return { state, dispatch, reset, fillSample, generate, stop }
+  return { state, dispatch, reset, fillSample, applyOneLiner, ensureTechGroup, generate, stop }
 }
 
 export type Studio = ReturnType<typeof useStudio>

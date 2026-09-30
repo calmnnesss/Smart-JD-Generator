@@ -26,18 +26,3 @@ export const BENEFIT_OPTIONS = [
   '六险一金', '五险一金', '免费三餐', '弹性工作', '年度调薪', '带薪年假',
   '年终奖', '股票期权', '补充医疗保险', '住房补贴', '定期体检', '团建旅游',
 ]
-
-const TECH_BY_ROLE: [RegExp, string[]][] = [
-  [/产品|PM|运营/i, ['RAG', 'Prompt 工程', '大模型评测', 'Agent', 'SQL', '数据分析', 'A/B 测试', 'Figma']],
-  [/前端|客户端|Web|小程序/i, ['React', 'TypeScript', 'Vue', 'Next.js', 'Node.js', 'Tailwind CSS', '小程序']],
-  [/后端|服务端|Java|Go|架构/i, ['Java', 'Go', 'Python', 'Spring Boot', 'MySQL', 'Redis', 'Kafka', 'Kubernetes']],
-  [/算法|模型|AI|NLP|机器学习/i, ['PyTorch', '大模型微调', 'RAG', 'Agent', '推荐系统', 'NLP', 'CUDA']],
-  [/数据/, ['SQL', 'Python', 'Spark', 'Flink', 'Hive', '数据可视化', 'Tableau']],
-  [/测试|QA/i, ['自动化测试', 'Python', 'Playwright', 'Selenium', '性能测试', 'JMeter']],
-  [/设计|UI|UX/i, ['Figma', '设计系统', '动效设计', '用户研究', 'Sketch']],
-]
-
-export function techSuggestions(title: string): string[] {
-  const match = TECH_BY_ROLE.find(([pattern]) => pattern.test(title))
-  return match ? match[1] : ['Python', 'SQL', '数据分析', 'Prompt 工程', 'RAG']
-}

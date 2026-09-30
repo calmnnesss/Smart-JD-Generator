@@ -59,6 +59,16 @@ def _hire_phrase(role: Role) -> str | None:
     return None
 
 
+def _location_phrase(locations: list[str]) -> str | None:
+    cities = [c for c in dict.fromkeys(l.strip() for l in locations) if c and c != "远程"]
+    remote = "远程" in locations
+    if cities and remote:
+        return f"base {'、'.join(cities)}，可远程"
+    if cities:
+        return f"base {'、'.join(cities)}"
+    return "远程办公" if remote else None
+
+
 def compose_hiring_needs(role: Role) -> str:
     parts: list[str] = []
     title = role.title
@@ -68,8 +78,9 @@ def compose_hiring_needs(role: Role) -> str:
     if role.scene:
         scene = role.scene.rstrip("，,。")
         parts.append(scene if scene.startswith("负责") else f"负责{scene}")
-    if role.location:
-        parts.append("远程办公" if role.location == "远程" else f"base {role.location}")
+    location = _location_phrase(role.locations)
+    if location:
+        parts.append(location)
     phrase = _hire_phrase(role)
     if phrase:
         parts.append(phrase)

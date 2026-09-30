@@ -27,13 +27,9 @@ async def mock_stream(inputs: dict[str, str], delay_scale: float = 1.0) -> Async
     yield _node("node_started", "start", "开始", "start")
     yield _node("node_finished", "start", "开始", "start", status="succeeded")
 
-    # 官网抓取与联网检索并行
     yield _node("node_started", "crawl", "抓取公司官网", "tool")
-    yield _node("node_started", "search", "联网检索公司信息", "tool")
-    await wait(1.6)
+    await wait(1.8)
     yield _node("node_finished", "crawl", "抓取公司官网", "tool", status="succeeded")
-    await wait(0.9)
-    yield _node("node_finished", "search", "联网检索公司信息", "tool", status="succeeded")
 
     for node_id, title, seconds in (
         ("analysis", "公司洞察分析", 2.4),

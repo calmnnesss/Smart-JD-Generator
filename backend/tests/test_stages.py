@@ -13,8 +13,10 @@ def test_keyword_mapping_and_parallel_research():
     t = StageTracker(overrides={})
     assert start(t, "1", "开始", "start") == []
     assert start(t, "2", "抓取公司官网", "tool") == [{"id": "fetch", "status": "running"}]
-    assert start(t, "3", "Tavily 搜索", "tool") == [{"id": "search", "status": "running"}]
-    [done] = finish(t, "2")
+    # 同一阶段里并行的第二个工具节点不重复发出 running
+    assert start(t, "3", "HTTP 请求", "http-request") == []
+    assert finish(t, "2") == []
+    [done] = finish(t, "3")
     assert done["id"] == "fetch" and done["status"] == "done"
     assert start(t, "4", "JD 审校", "llm") == [{"id": "review", "status": "running"}]
 

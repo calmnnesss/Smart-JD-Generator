@@ -7,7 +7,8 @@ export interface BriefDraft {
   role: {
     title: string
     scene: string
-    location: string
+    /** 工作地点，可多选；「远程」作为一个选项 */
+    locations: string[]
     hire_type: HireType | ''
     cohort: string
     experience: string
@@ -60,7 +61,29 @@ export type GenerateEvent =
 
 export const emptyBrief = (): BriefDraft => ({
   company: { name: '', domain: '', description: '' },
-  role: { title: '', scene: '', location: '', hire_type: '', cohort: '', experience: '', level: '', extra: '' },
+  role: { title: '', scene: '', locations: [], hire_type: '', cohort: '', experience: '', level: '', extra: '' },
   benefits: [],
   tech_stack: [],
 })
+
+/** 技术栈与方法的预设标签组（由后端提供） */
+export interface TechGroup {
+  id: string
+  label: string
+  tags: string[]
+}
+
+/** 一句话识别结果：engine 标明来自 LLM 还是本地规则 */
+export interface RoleParseResult {
+  title?: string | null
+  scene?: string | null
+  locations?: string[]
+  hire_type?: HireType | null
+  cohort?: string | null
+  experience?: string | null
+  level?: string | null
+  extra?: string | null
+  category?: string | null
+}
+
+export type Engine = 'llm' | 'rules'

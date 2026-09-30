@@ -44,7 +44,7 @@ export function CompanyStep({ studio }: { studio: Studio }) {
         </>
       }
     >
-      <Field label="公司名称" required hint="工商注册名或通用简称，会用于检索公开信息" error={errors.name}>
+      <Field label="公司名称" required hint="填写工商注册名或通用简称" error={errors.name}>
         <TextField value={company.name} onChange={(name) => patch({ name })} placeholder="例如：恒生电子" autoFocus invalid={!!errors.name} />
       </Field>
       <Field label="官网" required error={undefined}>

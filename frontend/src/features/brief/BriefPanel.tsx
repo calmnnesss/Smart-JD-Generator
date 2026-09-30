@@ -98,8 +98,8 @@ export function BriefPanel({ brief, roleMode, lastChanged, editable, onEdit }: B
         <BriefRow {...ctx} label="场景" fields={['scene']} step="role" empty={!role.scene}>
           {role.scene}
         </BriefRow>
-        <BriefRow {...ctx} label="地点" fields={['location']} step="role" empty={!role.location}>
-          {role.location}
+        <BriefRow {...ctx} label="地点" fields={['locations']} step="role" empty={!role.locations.length}>
+          {role.locations.join('、')}
         </BriefRow>
         <BriefRow
           {...ctx}

@@ -61,7 +61,7 @@ export function ConfirmStep({ studio }: { studio: Studio }) {
   return (
     <StepCard
       title="确认并生成"
-      description="以下是将提交给 JD 生成工作流的内容。生成时会读取官网、检索公开信息，并对初稿做一次审校。"
+      description="以下是将提交给 JD 生成工作流的内容。生成时会读取公司官网，并对初稿做一次审校。"
       footer={
         <>
           <Button variant="ghost" onClick={() => dispatch({ type: 'goto_step', step: 'extras' })} disabled={state.filling}>

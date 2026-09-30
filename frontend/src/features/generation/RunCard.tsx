@@ -18,11 +18,10 @@ interface RunCardProps {
 function stageCaptions(brief: BriefDraft): Record<string, string> {
   return {
     fetch: brief.company.domain ? `读取 ${hostOf(brief.company.domain)}` : '',
-    search: `检索「${brief.company.name}」的公开资料`,
     analyze: '文化关键词与岗位卖点',
     profile: '专业技能、实战经验、核心素质',
     draft: '按招聘启事结构组织内容',
-    review: '核对事实依据，删去没有来源的表述',
+    review: '核对事实依据',
   }
 }
 
