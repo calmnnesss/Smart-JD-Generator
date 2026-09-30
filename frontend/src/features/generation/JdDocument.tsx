@@ -1,30 +1,11 @@
 import { Check, Copy, Download, FileText } from 'lucide-react'
-import { useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '../../components/ui/Button'
 import { cn } from '../../lib/cn'
 import { markdownToPlain } from '../../lib/markdown'
+import { useCopied } from '../../lib/useCopied'
 import type { Run } from '../../types'
-
-function useCopied() {
-  const [copied, setCopied] = useState<string | null>(null)
-  const copy = async (key: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const area = document.createElement('textarea')
-      area.value = text
-      document.body.appendChild(area)
-      area.select()
-      document.execCommand('copy')
-      area.remove()
-    }
-    setCopied(key)
-    window.setTimeout(() => setCopied((k) => (k === key ? null : k)), 1600)
-  }
-  return { copied, copy }
-}
 
 function download(filename: string, content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }))

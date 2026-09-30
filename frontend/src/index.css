@@ -7,6 +7,8 @@
     'Inter Variable', 'PingFang SC', 'HarmonyOS Sans SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC',
     system-ui, sans-serif;
 
+  --font-mono: 'SFMono-Regular', ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+
   --color-canvas: #fafaf9;
   --color-ai-indigo: #6366f1;
   --color-ai-violet: #8b5cf6;
@@ -22,6 +24,7 @@
   --animate-orb-fast: orb-spin 2.6s linear infinite;
   --animate-breathe: breathe 2.8s ease-in-out infinite;
   --animate-caret: caret 1s steps(2) infinite;
+  --animate-flow: flow 3.2s ease-in-out infinite;
 
   @keyframes shimmer {
     from {
@@ -56,6 +59,14 @@
     50% {
       opacity: 0.9;
       transform: scale(1.08);
+    }
+  }
+  @keyframes flow {
+    from {
+      left: -6rem;
+    }
+    to {
+      left: 100%;
     }
   }
   @keyframes caret {
@@ -111,6 +122,7 @@
 
 @layer base {
   html {
+    scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -132,6 +144,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   ::before,
   ::after {

@@ -2,6 +2,39 @@
 
 用分步表单收集公司和岗位信息，交给 Dify 工作流去读取公司官网、提炼亮点、起草并审校，最后得到一份**不编造**的招聘启事底稿。
 
+## 两种使用方式
+
+- **网页**：落地页（`/`）介绍工作流设计与技术实现，生成器在 `/studio`。
+- **MCP**：同一条工作流也发布成了 MCP 服务，可以在 Claude、Cursor 等客户端的对话里直接调用。
+
+  | 项目 | 值 |
+  |------|----|
+  | 服务地址 | `https://api.dify.ai/mcp/server/tVcNH8P1xBQl51wT/mcp` |
+  | 传输方式 | Streamable HTTP |
+  | 工具 | `JD_generator_v3` |
+  | 参数 | 必填 `company_name`、`company_domain`、`company_description`、`hiring_needs`；选填 `specific_benefits`、`tech_stack`（均为 string） |
+  | 返回 | markdown 格式的 JD 正文，以及「仍需人工补充的信息」清单 |
+
+  ```bash
+  claude mcp add --transport http jd-generator https://api.dify.ai/mcp/server/tVcNH8P1xBQl51wT/mcp
+  ```
+
+## 工作流设计
+
+「写一份 JD」被拆成四个职责单一的环节，越靠后的环节越不能新增内容：
+
+```
+输入（5–6 个字段）
+  → 自动检索：官网正文 + 公开信息（并行），抓不到也不中断
+  → ① 公司文化分析   只引用，不推断
+  → ② 岗位需求提取   仅岗位能力可推断
+  → ③ 起草 JD        只组织上游给的内容，七个小节
+  → ④ 审校（异构模型）按八项清单逐条检查，只删改，不重写
+  → 输出：JD 正文 · 补充建议
+```
+
+## 网页端功能
+
 - **分步表单**：公司信息 → 岗位需求 → 福利与技术栈 → 确认生成。
 - **岗位需求两种填法**：两种方式写入同一份岗位信息，可以随时切换。
   - 一句话识别：由中间层 LLM（通义千问）把一句话拆成岗位、场景、地点、届别、经验等字段；没识别出的字段标为「待补充」，并直接给出对应控件。LLM 未配置或调用失败时，自动回退到本地规则识别。
@@ -37,7 +70,8 @@ frontend/   Vite + React + TypeScript + Tailwind CSS v4 + motion
   src/features/form/        分步表单：状态管理、字段定义、表单控件、各步骤
   src/features/brief/       招聘简报与完整度
   src/features/generation/  生成进度、JD 文档
-  src/pages/                Landing（落地页占位）、Studio（生成器）
+  src/features/landing/     落地页各区块：工作原理、工作流图、技术实现、接入方式（含 MCP 配置）
+  src/pages/                Landing（落地页）、Studio（生成器）
 backend/    FastAPI + httpx
   app/compose.py   简报 → 工作流入参的拼接规则
   app/dify.py      Dify 流式客户端
@@ -144,7 +178,6 @@ docker compose up -d --build
 
 ## 后续
 
-- 落地页正式内容（项目背景、工作流设计、迭代记录）
 - AI 对话模式：复用已有的 LLM 中间层，从自由对话中抽取招聘字段、回答旁支问题并拉回主题。它写入的是同一份 `Brief`，可以作为岗位需求的第三种填法
 - 利用工作流返回的空缺建议（`missing_info`）补充信息后改进再生成：后端的解析和 `supplements` 拼接已经就绪，前端暂未使用
 - 访问防护（限流、访问码）：在 `backend/app/main.py` 的 `generation_guard` 中实现，业务代码不用改
