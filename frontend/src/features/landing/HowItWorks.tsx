@@ -36,7 +36,7 @@ function LevelMeter({ level }: { level: number }) {
 function Failures() {
   return (
     <>
-      <SectionHeading eyebrow="工作原理" title="直接让 AI 写 JD，结构空位一定会被填满" description={BASELINE} />
+      <SectionHeading eyebrow="工作原理" title="直接让 AI 写 JD，幻觉难以控制" description={BASELINE} />
       <motion.p {...reveal} className="mt-12 text-xs text-zinc-500">
         在约束补齐之前的版本里，反复观察到这几类失效
       </motion.p>
@@ -64,7 +64,7 @@ function Turn() {
         而是让它在信息不足时<span className="ai-text">停下来</span>，而不是补满。
       </p>
       <p className="mt-4 text-[15px] leading-7 text-pretty text-zinc-600">
-        有效的办法是换一个结构：把生成过程拆开，让每个环节只处理自己职责内的信息，并给「我不知道」一个正式的出口。
+        有效的办法是换一个结构：把生成过程拆开，让每个环节只处理自己职责内的信息。
       </p>
     </motion.div>
   )

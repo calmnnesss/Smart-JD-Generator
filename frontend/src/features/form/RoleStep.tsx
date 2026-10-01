@@ -101,24 +101,12 @@ function RoleFieldControl({ field, brief, onChange, onCommit, large }: ControlPr
 /** 岗位描述方式：两张醒目的选择卡 */
 function ModeCards({ mode, llm, onChange }: { mode: RoleMode; llm: boolean | null; onChange: (mode: RoleMode) => void }) {
   const options = [
-    {
-      value: 'quick' as const,
-      icon: Wand2,
-      title: '一句话识别',
-      description: llm === false ? '用一句话描述岗位，按规则拆解成下面的字段' : '用一句话描述岗位，AI 拆解成结构化字段并标出缺失项',
-      badge: llm ? 'AI' : null,
-    },
-    {
-      value: 'guided' as const,
-      icon: ListChecks,
-      title: '逐项引导',
-      description: '一屏只问一项，用下拉和选项逐步填写',
-      badge: null,
-    },
+    { value: 'quick' as const, icon: Wand2, title: '一句话识别', badge: llm ? 'AI' : null },
+    { value: 'guided' as const, icon: ListChecks, title: '逐项引导', badge: null },
   ]
   return (
     <div role="radiogroup" aria-label="岗位描述方式" className="grid gap-3 sm:grid-cols-2">
-      {options.map(({ value, icon: Icon, title, description, badge }) => {
+      {options.map(({ value, icon: Icon, title, badge }) => {
         const selected = mode === value
         return (
           <button
@@ -128,7 +116,7 @@ function ModeCards({ mode, llm, onChange }: { mode: RoleMode; llm: boolean | nul
             aria-checked={selected}
             onClick={() => onChange(value)}
             className={cn(
-              'relative flex gap-3.5 rounded-2xl p-4 text-left transition-all duration-200 focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:outline-none',
+              'relative flex items-center gap-3.5 rounded-2xl p-4 text-left transition-all duration-200 focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:outline-none',
               selected
                 ? 'ai-border shadow-[0_0_0_4px_rgb(139_92_246/0.08)] [--ai-fill:#faf8ff]'
                 : 'border border-zinc-200 bg-white hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-soft',
@@ -142,12 +130,9 @@ function ModeCards({ mode, llm, onChange }: { mode: RoleMode; llm: boolean | nul
             >
               <Icon className="size-5" />
             </span>
-            <span className="min-w-0 pr-5">
-              <span className="flex items-center gap-2">
-                <span className={cn('text-[15px] font-semibold', selected ? 'text-zinc-900' : 'text-zinc-700')}>{title}</span>
-                {badge && <span className="ai-text rounded border border-violet-200 px-1 text-[10px] leading-4 font-semibold">{badge}</span>}
-              </span>
-              <span className="mt-1 block text-[13px] leading-5 text-zinc-500">{description}</span>
+            <span className="flex min-w-0 items-center gap-2 pr-5">
+              <span className={cn('text-[15px] font-semibold', selected ? 'text-zinc-900' : 'text-zinc-700')}>{title}</span>
+              {badge && <span className="ai-text rounded border border-violet-200 px-1 text-[10px] leading-4 font-semibold">{badge}</span>}
             </span>
             {selected && (
               <span className="absolute top-3 right-3 grid size-5 place-items-center rounded-full bg-violet-600 text-white">
