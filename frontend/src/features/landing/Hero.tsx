@@ -1,7 +1,6 @@
 import { ArrowRight, Plug } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Link } from 'react-router'
-import { AIOrb } from '../../components/ui/AIOrb'
 import { revealAt } from './motion'
 
 const STATS = [
@@ -22,13 +21,7 @@ const PIPELINE = [
 function PipelinePreview() {
   return (
     <div className="relative mx-auto mt-14 max-w-4xl rounded-3xl border border-zinc-200/70 bg-white/70 p-4 shadow-float backdrop-blur sm:p-6">
-      <div className="mb-4 flex items-center justify-between px-1 text-xs text-zinc-400">
-        <span className="flex items-center gap-2">
-          <AIOrb size={16} thinking />
-          工作流运行中
-        </span>
-        <span className="hidden sm:inline">约束逐级收紧 →</span>
-      </div>
+      <div className="mb-4 hidden justify-end px-1 text-xs text-zinc-400 sm:flex">约束逐级收紧 →</div>
       <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-4">
         {/* 连接线与流光（仅桌面） */}
         <div className="pointer-events-none absolute top-1/2 right-[12%] left-[12%] hidden h-px -translate-y-1/2 bg-zinc-200 sm:block">
@@ -69,10 +62,7 @@ export function Hero() {
         给用人主管的
         <span className="ai-text"> JD 底稿工具</span>
       </motion.h1>
-      <motion.p {...revealAt(3)} className="mx-auto mt-6 max-w-xl text-base leading-8 text-pretty text-zinc-600 sm:text-lg">
-        填几个确定知道的字段，拿回一份结构完整、每句话都有出处的招聘启事初稿。
-      </motion.p>
-      <motion.div {...revealAt(4)} className="mt-10 flex flex-wrap items-center justify-center gap-3">
+      <motion.div {...revealAt(3)} className="mt-9 flex flex-wrap items-center justify-center gap-3">
         <Link
           to="/studio"
           className="group relative isolate inline-flex h-12 items-center gap-2 rounded-2xl bg-zinc-900 px-6 text-[15px] font-medium text-white shadow-glow transition before:absolute before:-inset-px before:-z-10 before:rounded-[inherit] before:bg-linear-to-r before:from-ai-indigo before:via-ai-violet before:to-ai-cyan before:opacity-0 before:blur-md before:transition-opacity hover:bg-zinc-800 hover:before:opacity-60"
@@ -88,13 +78,13 @@ export function Hero() {
           MCP 接入
         </a>
       </motion.div>
-      <motion.div {...revealAt(5)} className="mt-5">
+      <motion.div {...revealAt(4)} className="mt-5">
         <Link to="/studio?demo=1" className="text-sm text-zinc-500 underline decoration-zinc-300 underline-offset-4 transition hover:text-zinc-900">
           或者，先看一段示例
         </Link>
       </motion.div>
 
-      <motion.dl {...revealAt(6)} className="mx-auto mt-14 grid max-w-3xl grid-cols-2 gap-y-6 sm:grid-cols-4">
+      <motion.dl {...revealAt(5)} className="mx-auto mt-14 grid max-w-3xl grid-cols-2 gap-y-6 sm:grid-cols-4">
         {STATS.map((stat) => (
           <div key={stat.label} className="flex flex-col items-center">
             <dt className="order-2 mt-1 text-[13px] text-zinc-500">{stat.label}</dt>

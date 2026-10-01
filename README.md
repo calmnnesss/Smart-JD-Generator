@@ -70,7 +70,7 @@ frontend/   Vite + React + TypeScript + Tailwind CSS v4 + motion
   src/features/form/        分步表单：状态管理、字段定义、表单控件、各步骤
   src/features/brief/       招聘简报与完整度
   src/features/generation/  生成进度、JD 文档
-  src/features/landing/     落地页各区块：工作原理、工作流图、技术实现、接入方式（含 MCP 配置）
+  src/features/landing/     落地页各区块：工作原理（含痛点背景）、工作流图、接入方式（含 MCP 配置）
   src/pages/                Landing（落地页）、Studio（生成器）
 backend/    FastAPI + httpx
   app/compose.py   简报 → 工作流入参的拼接规则

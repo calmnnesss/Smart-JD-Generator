@@ -163,7 +163,7 @@ function ModeCards({ mode, llm, onChange }: { mode: RoleMode; llm: boolean | nul
 
 function OneLinerMode({ studio, llm }: { studio: Studio; llm: boolean | null }) {
   const { state, dispatch, applyOneLiner } = studio
-  const { brief, oneLiner, appliedOneLiner, detected, parsingText, parseEngine } = state
+  const { brief, oneLiner, appliedOneLiner, parsingText, parseEngine } = state
   const ref = useRef<HTMLTextAreaElement>(null)
   const parsing = parsingText !== null
   const pending = !!oneLiner.trim() && oneLiner.trim() !== appliedOneLiner
@@ -225,13 +225,7 @@ function OneLinerMode({ studio, llm }: { studio: Studio; llm: boolean | null }) 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium text-zinc-800">岗位信息</h3>
-            {parseEngine === 'llm' && (
-              <Tag tone="ai">
-                <Sparkles className="size-3" />
-                通义千问识别
-              </Tag>
-            )}
-            {parseEngine === 'rules' && <Tag>{llm ? 'AI 暂不可用，已用本地规则识别' : '本地规则识别'}</Tag>}
+            {parseEngine === 'rules' && llm && <Tag>AI 暂不可用，已用本地规则识别</Tag>}
           </div>
           <span className="text-xs text-zinc-400">可直接修改；重新识别会覆盖这里</span>
         </div>
@@ -240,13 +234,11 @@ function OneLinerMode({ studio, llm }: { studio: Studio; llm: boolean | null }) 
             {quickFields(brief).map((field) => {
               const value = brief.role[field]
               const badge =
-                detected.includes(field) && !isEmpty(value)
-                  ? 'detected'
-                  : isEmpty(value) && RECOMMENDED.includes(field)
-                    ? 'missing'
-                    : isEmpty(value) && ROLE_FIELDS[field].optional
-                      ? 'optional'
-                      : undefined
+                isEmpty(value) && RECOMMENDED.includes(field)
+                  ? 'missing'
+                  : isEmpty(value) && ROLE_FIELDS[field].optional
+                    ? 'optional'
+                    : undefined
               return (
                 <Field key={field} label={ROLE_FIELDS[field].label} badge={badge} required={field === 'title'}>
                   <RoleFieldControl field={field} brief={brief} onChange={setRole(field)} />

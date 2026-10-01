@@ -26,7 +26,7 @@ export function Chip({ selected, className, children, ...props }: ChipProps) {
   )
 }
 
-/** 只读标签（「已识别」、简报里的福利等） */
+/** 只读标签（识别状态、简报里的福利等） */
 export function Tag({ children, tone = 'neutral', className }: { children: ReactNode; tone?: 'neutral' | 'ai'; className?: string }) {
   return (
     <span

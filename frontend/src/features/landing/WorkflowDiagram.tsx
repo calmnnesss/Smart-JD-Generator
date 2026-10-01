@@ -15,7 +15,7 @@ interface Node {
 
 const NODES: Node[] = [
   { kind: 'io', title: '输入', detail: '公司信息 + 招聘需求，5 到 6 个字段' },
-  { kind: 'retrieve', title: '自动检索', detail: '官网正文 + 公开信息（并行）', rule: '抓不到也不中断' },
+  { kind: 'retrieve', title: '自动检索', detail: '官网正文 + 公开信息（并行）' },
   { kind: 'stage', title: '① 公司文化分析', detail: '提炼文化与卖点，逐条附原文出处', rule: '只引用，不推断' },
   { kind: 'stage', title: '② 岗位需求提取', detail: '推断职责、技能、经验、特质四组画像', rule: '仅岗位能力可推断' },
   { kind: 'stage', title: '③ 起草 JD', detail: '组织成七个小节的 markdown 正文', rule: '只组织上游给的内容' },
@@ -53,8 +53,8 @@ export function WorkflowDiagram() {
     <Section id="workflow" className="border-y border-zinc-200/60 bg-white/50">
       <SectionHeading
         eyebrow="工作流架构"
-        title="权限逐级收紧：越靠后的环节越不能新增内容"
-        description="四个生成环节依次接力，每一环能动用的信息都由上一环锁定。"
+        title="权限逐级收紧"
+        description="四个生成环节依次接力，越靠后的环节能做的事越少。"
       />
 
       <div className="mx-auto mt-14 grid max-w-4xl lg:grid-cols-[5rem_minmax(0,32rem)_minmax(0,1fr)] lg:gap-x-8">
@@ -98,7 +98,7 @@ export function WorkflowDiagram() {
         className="mx-auto mt-14 max-w-3xl border-l-2 border-violet-400 pl-5 text-base leading-8 text-zinc-600"
       >
         约束方向是单调收紧的：越靠后的环节能做的事越少，到最后一环只剩「删」这一个动作。
-        <span className="text-zinc-900">控制幻觉靠的正是这个结构</span>：每一环能动用的信息都由上一环锁定。
+        <span className="text-zinc-900">控制幻觉靠的正是这个结构。</span>
       </motion.blockquote>
     </Section>
   )

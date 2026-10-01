@@ -7,7 +7,6 @@ import { cn } from '../../lib/cn'
 const LINKS = [
   { href: '#how', label: '工作原理' },
   { href: '#workflow', label: '工作流' },
-  { href: '#stack', label: '技术实现' },
   { href: '#access', label: '接入' },
 ]
 

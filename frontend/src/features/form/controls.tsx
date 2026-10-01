@@ -9,10 +9,9 @@ import { hostOf, validateUrl } from '../../lib/url'
 
 /** 受控表单控件：值由 useStudio 统一管理，控件只负责展示与交互 */
 
-type Badge = 'detected' | 'missing' | 'optional'
+type Badge = 'missing' | 'optional'
 
 const BADGES: Record<Badge, { text: string; className: string }> = {
-  detected: { text: '已识别', className: 'ai-border text-violet-700 [--ai-fill:var(--color-violet-50)]' },
   missing: { text: '待补充', className: 'border border-amber-200 bg-amber-50 text-amber-700' },
   optional: { text: '可选', className: 'bg-zinc-100 text-zinc-500' },
 }
